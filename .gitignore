@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Docker y Entornos
+.env
+
+# Modelos y datos locales
+models/
+data/
+!data/inputs/.gitkeep
+!data/outputs/.gitkeep

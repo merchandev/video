@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LocalWan Studio - Generador de Video</title>
+    <meta name="description" content="Generador de video local basado en Wan2.2-TI2V-5B.">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-background"></div>
+    <div class="app-container">
+        <header>
+            <h1>LocalWan <span class="accent">Studio</span></h1>
+            <p>Generación Local con Wan2.2-TI2V-5B</p>
+        </header>
+
+        <main class="main-content">
+            <section class="config-panel glass-panel">
+                <h2>Configuración</h2>
+                <form id="generate-form">
+                    
+                    <div class="form-group">
+                        <label for="prompt">Prompt Textual</label>
+                        <textarea id="prompt" name="prompt" rows="4" placeholder="Describe la escena cinemática en detalle..." required></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="image">Imagen Inicial (Opcional)</label>
+                        <div class="file-drop-area">
+                            <span class="file-msg">Arrastra tu imagen o haz clic aquí</span>
+                            <input class="file-input" type="file" id="image" name="image" accept="image/*">
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="form-group half">
+                            <label for="orientation">Orientación</label>
+                            <select id="orientation" name="orientation">
+                                <option value="horizontal">Horizontal (1280x720)</option>
+                                <option value="vertical">Vertical (720x1280)</option>
+                            </select>
+                        </div>
+                        <div class="form-group half">
+                            <label for="duration_seconds">Duración (seg)</label>
+                            <input type="number" id="duration_seconds" name="duration_seconds" value="5" min="1" max="15">
+                        </div>
+                    </div>
+
+                    <div class="advanced-settings-toggle" id="advanced-toggle">
+                        <span>Opciones Avanzadas</span>
+                        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </div>
+
+                    <div class="advanced-settings" id="advanced-settings">
+                        <div class="row">
+                            <div class="form-group half">
+                                <label for="seed">Seed (-1 = Random)</label>
+                                <input type="number" id="seed" name="seed" value="-1">
+                            </div>
+                            <div class="form-group half">
+                                <label for="sample_steps">Pasos (Steps)</label>
+                                <input type="number" id="sample_steps" name="sample_steps" value="50">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="form-group half">
+                                <label for="guide_scale">CFG Scale</label>
+                                <input type="number" id="guide_scale" name="guide_scale" step="0.1" value="5.0">
+                            </div>
+                            <div class="form-group half">
+                                <label for="sample_solver">Solver</label>
+                                <select id="sample_solver" name="sample_solver">
+                                    <option value="unipc">UniPC</option>
+                                    <option value="ddim">DDIM</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="form-group half">
+                                <label for="offload_model">Offload Model</label>
+                                <select id="offload_model" name="offload_model">
+                                    <option value="true">Sí (< 24GB VRAM)</option>
+                                    <option value="false">No (Rápido, requiere 24GB+)</option>
+                                </select>
+                            </div>
+                            <div class="form-group half">
+                                <label for="t5_cpu">T5 en CPU</label>
+                                <select id="t5_cpu" name="t5_cpu">
+                                    <option value="true">Sí (Ahorra VRAM)</option>
+                                    <option value="false">No</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-primary" id="generate-btn">
+                        Generar Video
+                        <span class="btn-glow"></span>
+                    </button>
+                </form>
+            </section>
+
+            <section class="preview-panel glass-panel">
+                <div class="status-container" id="status-container">
+                    <div class="empty-state" id="empty-state">
+                        <svg viewBox="0 0 24 24" width="48" height="48" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" fill="none"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line><line x1="2" y1="7" x2="7" y2="7"></line><line x1="2" y1="17" x2="7" y2="17"></line><line x1="17" y1="17" x2="22" y2="17"></line><line x1="17" y1="7" x2="22" y2="7"></line></svg>
+                        <p>Tu video aparecerá aquí</p>
+                    </div>
+                    
+                    <div class="progress-state hidden" id="progress-state">
+                        <h3 id="progress-text">Preparando...</h3>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar" id="progress-bar"></div>
+                        </div>
+                        <div class="log-container" id="log-container"></div>
+                        <button class="btn-danger" id="cancel-btn">Cancelar Generación</button>
+                    </div>
+
+                    <div class="result-state hidden" id="result-state">
+                        <video id="result-video" controls loop autoplay playsinline></video>
+                        <div class="actions">
+                            <a href="#" id="download-mp4" class="btn-secondary" download>Descargar Video</a>
+                            <a href="#" id="download-json" class="btn-secondary" download>Metadata JSON</a>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>

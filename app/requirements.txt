@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+python-multipart
+huggingface_hub
+diffusers
+transformers
+accelerate
+sentencepiece
+protobuf
+ffmpeg-python
+imageio[ffmpeg]
