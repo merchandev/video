@@ -39,9 +39,10 @@ def run_skyreels_sync(job_id: str):
         device = "cuda" if torch.cuda.is_available() else "cpu"
         
         offload = False
+        OFFLOAD_THRESHOLD_GB = float(os.getenv("OFFLOAD_THRESHOLD_GB", "16"))
         if DEFAULT_OFFLOAD_MODE == "auto" and device == "cuda":
             vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
-            if vram_gb <= 8.5:
+            if vram_gb < OFFLOAD_THRESHOLD_GB:
                 offload = True
         elif DEFAULT_OFFLOAD_MODE == "force":
             offload = True

@@ -17,11 +17,12 @@ services:
               count: 1
               capabilities: [gpu]
     environment:
-      - SKYREELS_I2V_MODEL_ID=/models/SkyReels-V2-I2V-1.3B-540P-Diffusers
-      - SKYREELS_DF_MODEL_ID=/models/SkyReels-V2-DF-1.3B-540P-Diffusers
-      - DEFAULT_OFFLOAD_MODE=auto
-      - HF_HOME=/models/.cache/huggingface
-      - FFMPEG_CRF=18
+      - SKYREELS_I2V_MODEL_ID=${SKYREELS_I2V_MODEL_ID:-/models/SkyReels-V2-I2V-1.3B-540P-Diffusers}
+      - SKYREELS_DF_MODEL_ID=${SKYREELS_DF_MODEL_ID:-/models/SkyReels-V2-DF-1.3B-540P-Diffusers}
+      - DEFAULT_OFFLOAD_MODE=${DEFAULT_OFFLOAD_MODE:-auto}
+      - OFFLOAD_THRESHOLD_GB=${OFFLOAD_THRESHOLD_GB:-16}
+      - HF_HOME=${HF_HOME:-/models/.cache/huggingface}
+      - FFMPEG_CRF=${FFMPEG_CRF:-18}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:7860/api/health"]

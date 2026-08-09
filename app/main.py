@@ -64,8 +64,35 @@ async def process_image(file_obj: UploadFile, prefix: str) -> str:
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Imagen inválida: {str(e)}")
 
+def validate_model_integrity(model_path: Path, model_type: str) -> bool:
+    required = [
+        "model_index.json",
+        "transformer/config.json",
+        "vae/diffusion_pytorch_model.safetensors",
+        "tokenizer/vocab.json",
+        "tokenizer/merges.txt",
+        "scheduler/scheduler_config.json",
+        "text_encoder/config.json",
+        "text_encoder/model.safetensors.index.json"
+    ]
+    if model_type == "i2v":
+        required.extend([
+            "image_encoder/config.json",
+            "image_encoder/model.safetensors",
+            "image_processor/preprocessor_config.json"
+        ])
+    
+    for req in required:
+        if not (model_path / req).exists():
+            return False
+    return True
+
 @app.get("/api/health")
 def health_check():
+    return {"status": "ok"}
+
+@app.get("/api/readiness")
+def readiness_check():
     health_data = {
         "status": "ok",
         "gpu": False,
@@ -78,41 +105,20 @@ def health_check():
         health_data["vram_gb"] = round(torch.cuda.get_device_properties(0).total_memory / (1024**3), 2)
         health_data["gpu_name"] = torch.cuda.get_device_name(0)
         
-    # Verificar modelos
     base_model_dir = Path(os.environ.get("MODEL_DIR_BASE", "/models"))
     i2v_path = base_model_dir / "SkyReels-V2-I2V-1.3B-540P-Diffusers"
-    
-    required_files = [
-        "model_index.json",
-        "transformer/config.json",
-        "transformer/diffusion_pytorch_model.safetensors.index.json",
-        "transformer/diffusion_pytorch_model-00001-of-00002.safetensors",
-        "transformer/diffusion_pytorch_model-00002-of-00002.safetensors",
-        "vae/diffusion_pytorch_model.safetensors",
-    ]
-    
-    i2v_ready = False
-    if i2v_path.exists():
-        missing = [f for f in required_files if not (i2v_path / f).exists()]
-        i2v_ready = len(missing) == 0
-
     df_path = base_model_dir / "SkyReels-V2-DF-1.3B-540P-Diffusers"
-    df_ready = False
-    if df_path.exists():
-        missing_df = [f for f in required_files if not (df_path / f).exists()]
-        df_ready = len(missing_df) == 0
     
     health_data["models"] = {
         "i2v": {
             "exists": i2v_path.exists(),
-            "ready": i2v_ready
+            "ready": validate_model_integrity(i2v_path, "i2v") if i2v_path.exists() else False
         },
         "df": {
             "exists": df_path.exists(),
-            "ready": df_ready
+            "ready": validate_model_integrity(df_path, "df") if df_path.exists() else False
         }
     }
-    
     return health_data
 
 @app.post("/api/generate")
@@ -133,17 +139,7 @@ async def generate_video(
     addnoise_condition: int = Form(20),
     db: Session = Depends(get_db)
 ):
-    # Validación estricta de la integridad del modelo
     base_model_dir = Path(os.environ.get("MODEL_DIR_BASE", "/models"))
-    
-    required_files = [
-        "model_index.json",
-        "transformer/config.json",
-        "transformer/diffusion_pytorch_model.safetensors.index.json",
-        "transformer/diffusion_pytorch_model-00001-of-00002.safetensors",
-        "transformer/diffusion_pytorch_model-00002-of-00002.safetensors",
-        "vae/diffusion_pytorch_model.safetensors",
-    ]
     
     valid_modes = ["i2v", "t2v", "first_last", "extend"]
     if mode not in valid_modes:
@@ -168,14 +164,15 @@ async def generate_video(
 
     if mode == "i2v" and duration_seconds <= 4:
         model_path = base_model_dir / "SkyReels-V2-I2V-1.3B-540P-Diffusers"
+        model_type = "i2v"
     else:
         model_path = base_model_dir / "SkyReels-V2-DF-1.3B-540P-Diffusers"
+        model_type = "df"
         
-    missing = [f for f in required_files if not (model_path / f).exists()]
-    if missing:
+    if not validate_model_integrity(model_path, model_type):
         raise HTTPException(
             status_code=400, 
-            detail=f"MODELO INCOMPLETO para modo {mode}. Faltan: {', '.join(missing)}"
+            detail=f"MODELO INCOMPLETO para modo {mode}."
         )
 
     # Validar imágenes e inputs antes de continuar
@@ -201,8 +198,9 @@ async def generate_video(
         
     if mode == "extend" and video:
         video_path = str(INPUTS_DIR / f"{job_id}_ext.mp4")
+        import shutil
         with open(video_path, "wb") as f:
-            f.write(await video.read())
+            shutil.copyfileobj(video.file, f)
             
     # Base frames según perfil (reducción para VRAM)
     if profile == "extreme":
@@ -212,8 +210,19 @@ async def generate_video(
     else: # native
         width, height = (960, 544) if orientation == "horizontal" else (544, 960)
         
-    # SkyReels: los frames deben cumplir (N - 1) % 4 == 0 para el DF
-    num_frames = ((duration_seconds * 24 - 1) // 4) * 4 + 1
+    # SkyReels: cálculo de frames
+    if mode == "i2v" and duration_seconds <= 4:
+        num_frames = duration_seconds * 24 + 1
+    else:
+        num_frames = ((duration_seconds * 24 - 1) // 4) * 4 + 1
+        
+    if ar_step > 0:
+        causal_block_size = 5
+        latent_frames = (num_frames - 1) // 4 + 1
+        if latent_frames % causal_block_size != 0:
+            # Auto-corregir num_frames
+            latent_frames = ((latent_frames + causal_block_size - 1) // causal_block_size) * causal_block_size
+            num_frames = (latent_frames - 1) * 4 + 1
         
     new_job = Job(
         id=job_id,
@@ -293,5 +302,5 @@ async def get_job_video(job_id: str, db: Session = Depends(get_db)):
     return FileResponse(output_path, media_type="video/mp4")
 
 # UI Estática
-os.makedirs("/app/app/static", exist_ok=True)
-app.mount("/", StaticFiles(directory="/app/app/static", html=True), name="static")
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")

@@ -10,11 +10,18 @@ client = TestClient(app)
 
 @pytest.fixture(autouse=True)
 def mock_model_files():
-    with patch("app.main.Path.exists", return_value=True):
+    with patch("app.main.validate_model_integrity", return_value=True), \
+         patch("app.main.queue_job"), \
+         patch("app.main.Path.exists", return_value=True):
         yield
 
 def test_health_check():
     response = client.get("/api/health")
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+
+def test_readiness_check():
+    response = client.get("/api/readiness")
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "ok"

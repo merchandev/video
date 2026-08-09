@@ -169,12 +169,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const mode = baseFormData.get('mode');
         
         try {
-            const statusRes = await fetch("/api/health");
+            const statusRes = await fetch("/api/readiness");
             if (statusRes.ok) {
                 const statusData = await statusRes.json();
                 if (statusData.models) {
                     let isReady = false;
-                    if (mode === 'i2v') {
+                    const duration = Number(baseFormData.get('duration_seconds')) || 4;
+                    if (mode === 'i2v' && duration <= 4) {
                         isReady = statusData.models.i2v && statusData.models.i2v.ready;
                     } else {
                         isReady = statusData.models.df && statusData.models.df.ready;

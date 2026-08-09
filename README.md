@@ -16,7 +16,8 @@ Generador de video local basado enteramente en la integración oficial de **SkyR
 
 - Windows 10/11 actualizado
 - Docker Desktop usando backend WSL2
-- GPU NVIDIA (mínimo 6-8GB VRAM) visible desde Docker
+- Espacio en disco: mínimo 65GB libres (I2V ocupa ~32GB, DF ~29GB)
+- GPU NVIDIA: 8GB experimental con sequential CPU offload y perfil Extreme. 16GB+ recomendado para una experiencia más cómoda.
 - Driver NVIDIA actualizado
 
 ## Instalación Automática (Windows)
