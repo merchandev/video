@@ -1,0 +1,35 @@
+services:
+  wan-studio:
+    build:
+      context: .
+      args:
+        - INSTALL_FLASH_ATTN=${INSTALL_FLASH_ATTN:-0}
+    container_name: localwan-studio
+    ports:
+      - "127.0.0.1:7860:7860"
+    volumes:
+      - ./models:/models
+      - ./data:/app/data
+      - ./app:/app
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - MODEL_DIR=/models/Wan2.2-TI2V-5B
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  model-downloader:
+    build:
+      context: .
+    profiles:
+      - tools
+    volumes:
+      - ./models:/models
+    command: python download_model.py
+    environment:
+      - MODEL_DIR=/models/Wan2.2-TI2V-5B
