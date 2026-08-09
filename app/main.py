@@ -1,6 +1,6 @@
 import os
 import uuid
-from typing import Optional
+from typing import Optional, List
 from pathlib import Path
 from PIL import Image, ExifTags
 from fastapi import FastAPI, BackgroundTasks, Depends, File, Form, UploadFile, HTTPException
@@ -156,6 +156,7 @@ async def generate_video(
     image: Optional[UploadFile] = File(None),
     end_image: Optional[UploadFile] = File(None),
     video: Optional[UploadFile] = File(None),
+    storyboard_images: List[UploadFile] = File(None),
     profile: str = Form("extreme"),
     orientation: str = Form("horizontal"),
     duration_seconds: int = Form(4),
@@ -167,7 +168,7 @@ async def generate_video(
 ):
     base_model_dir = Path(os.environ.get("MODEL_DIR_BASE", "/models"))
     
-    valid_modes = ["i2v", "t2v", "first_last", "extend"]
+    valid_modes = ["i2v", "t2v", "first_last", "extend", "storyboard"]
     if mode not in valid_modes:
         raise HTTPException(status_code=400, detail=f"Modo inválido: {mode}")
 
@@ -214,11 +215,15 @@ async def generate_video(
         
     if mode == "extend" and not video:
         raise HTTPException(status_code=400, detail="Se requiere un 'video' para el modo extend.")
+        
+    if mode == "storyboard" and (not storyboard_images or len(storyboard_images) < 2):
+        raise HTTPException(status_code=400, detail="Se requieren al menos 2 imágenes para storyboard.")
 
     job_id = str(uuid.uuid4())
     image_path = None
     end_image_path = None
     video_path = None
+    storyboard_paths_list = []
     
     if mode in ["i2v", "first_last"] and image:
         image_path = await process_image(image, f"{job_id}_start")
@@ -233,6 +238,11 @@ async def generate_video(
         import shutil
         with open(video_path, "wb") as f:
             shutil.copyfileobj(video.file, f)
+            
+    if mode == "storyboard" and storyboard_images:
+        for idx, s_img in enumerate(storyboard_images):
+            s_path = await process_image(s_img, f"{job_id}_sb_{idx}")
+            storyboard_paths_list.append(s_path)
             
     # Base frames según perfil (reducción para VRAM)
     if profile == "extreme":
@@ -256,6 +266,7 @@ async def generate_video(
                 latent_frames = ((latent_frames + causal_block_size - 1) // causal_block_size) * causal_block_size
                 num_frames = (latent_frames - 1) * 4 + 1
         
+    import json
     new_job = Job(
         id=job_id,
         mode=mode,
@@ -264,6 +275,7 @@ async def generate_video(
         image_path=image_path,
         end_image_path=end_image_path,
         video_path=video_path,
+        storyboard_paths=json.dumps(storyboard_paths_list) if storyboard_paths_list else None,
         seed=seed,
         profile=profile,
         width=width,

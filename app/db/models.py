@@ -13,6 +13,7 @@ class Job(Base):
     image_path = Column(String, nullable=True)
     end_image_path = Column(String, nullable=True)
     video_path = Column(String, nullable=True)
+    storyboard_paths = Column(String, nullable=True) # JSON encoded list of paths
     output_path = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     started_at = Column(DateTime, nullable=True)

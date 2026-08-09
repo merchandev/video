@@ -27,6 +27,7 @@
                             <option value="t2v">Texto → Video</option>
                             <option value="first_last">Primer frame → último frame</option>
                             <option value="extend">Extender video</option>
+                            <option value="storyboard">Storyboard (Múltiples Imágenes)</option>
                         </select>
                     </div>
 
@@ -51,6 +52,14 @@
                         <div class="file-drop-area">
                             <span class="file-msg" id="msg-video">Sube los MP4 base...</span>
                             <input class="file-input" type="file" id="video" name="video" accept="video/mp4" multiple>
+                        </div>
+                    </div>
+
+                    <div class="form-group hidden" id="group-storyboard">
+                        <label for="storyboard_images">Imágenes clave (Storyboard en orden)</label>
+                        <div class="file-drop-area">
+                            <span class="file-msg" id="msg-storyboard">Sube 2 o más imágenes para interpolar...</span>
+                            <input class="file-input" type="file" id="storyboard_images" name="storyboard_images" accept="image/*" multiple>
                         </div>
                     </div>
 

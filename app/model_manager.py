@@ -235,6 +235,79 @@ def run_skyreels_sync(job_id: str):
             
             # Use diffusers native precision management
             video_frames = pipe(**kwargs).frames[0]
+            
+        elif job.mode == "storyboard":
+            import json
+            paths = json.loads(job.storyboard_paths) if job.storyboard_paths else []
+            if len(paths) < 2:
+                raise Exception("Not enough images for storyboard")
+                
+            vae = AutoencoderKLWan.from_pretrained(
+                DF_MODEL_ID,
+                subfolder="vae",
+                torch_dtype=torch.float32,
+                local_files_only=True,
+                use_safetensors=True,
+            )
+            pipe = SkyReelsV2DiffusionForcingImageToVideoPipeline.from_pretrained(
+                DF_MODEL_ID, 
+                vae=vae,
+                torch_dtype=torch.bfloat16,
+                use_safetensors=True,
+                local_files_only=True
+            )
+            pipe.scheduler = UniPCMultistepScheduler.from_config(
+                pipe.scheduler.config,
+                flow_shift=5.0,
+            )
+            
+            if offload:
+                pipe.enable_sequential_cpu_offload()
+            else:
+                pipe.to(device)
+                
+            from PIL import Image
+            all_video_frames = []
+            
+            total_pairs = len(paths) - 1
+            job.total_steps = 30 * total_pairs
+            db.commit()
+            
+            for i in range(total_pairs):
+                start_img = load_image(paths[i]).convert("RGB")
+                end_img = load_image(paths[i+1]).convert("RGB")
+                
+                if i == 0:
+                    base_size = start_img.size
+                else:
+                    if start_img.size != base_size:
+                        start_img = start_img.resize(base_size, Image.Resampling.LANCZOS)
+                        
+                if end_img.size != base_size:
+                    end_img = end_img.resize(base_size, Image.Resampling.LANCZOS)
+                    
+                kwargs["image"] = start_img
+                kwargs["last_image"] = end_img
+                
+                # Callback wrapper to adjust steps
+                def sb_progress_callback(pipe, step, timestep, callback_kwargs, pair_idx=i):
+                    db.refresh(job)
+                    if job.status == "cancelled":
+                        raise Exception("Job cancelled by user")
+                    job.current_step = (pair_idx * 30) + step
+                    db.commit()
+                    return callback_kwargs
+                    
+                kwargs["callback_on_step_end"] = sb_progress_callback
+                
+                pair_frames = pipe(**kwargs).frames[0]
+                
+                if i > 0:
+                    pair_frames = pair_frames[1:]
+                    
+                all_video_frames.extend(pair_frames)
+                
+            video_frames = all_video_frames
         
         del pipe
         gc.collect()

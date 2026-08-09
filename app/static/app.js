@@ -39,12 +39,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const durationLabel = document.querySelector('label[for="duration_seconds"]');
 
+    const groupStoryboard = document.getElementById('group-storyboard');
+
     // Mode logic
     modeSelect.addEventListener('change', (e) => {
         const mode = e.target.value;
         groupImage.classList.add('hidden');
         groupEndImage.classList.add('hidden');
         groupVideo.classList.add('hidden');
+        if (groupStoryboard) groupStoryboard.classList.add('hidden');
         
         if (durationLabel) {
             if (mode === 'extend') {
@@ -63,6 +66,8 @@ document.addEventListener('DOMContentLoaded', () => {
             groupEndImage.classList.remove('hidden');
         } else if (mode === 'extend') {
             groupVideo.classList.remove('hidden');
+        } else if (mode === 'storyboard' && groupStoryboard) {
+            groupStoryboard.classList.remove('hidden');
         }
     });
 
@@ -221,6 +226,16 @@ document.addEventListener('DOMContentLoaded', () => {
             for(let i=0; i<count; i++) {
                 fileList.push({ start: imgInput.files[i], end: endImgInput.files[i] });
             }
+        } else if (mode === 'storyboard') {
+            const input = document.getElementById('storyboard_images');
+            if (input.files.length >= 2) {
+                fileList.push({ images: Array.from(input.files).slice(0, 20) });
+            } else {
+                alert("Debes subir al menos 2 imágenes para el storyboard.");
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = 'GENERAR VIDEOS <span class="btn-glow"></span>';
+                return;
+            }
         }
         
         // Si no hay múltiples o es t2v, es 1 solo job
@@ -245,6 +260,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (mode === 'first_last') {
                     jobFormData.append('image', fileList[i].start);
                     jobFormData.append('end_image', fileList[i].end);
+                } else if (mode === 'storyboard') {
+                    for (let img of fileList[i].images) {
+                        jobFormData.append('storyboard_images', img);
+                    }
                 }
             }
             
