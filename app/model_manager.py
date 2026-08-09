@@ -60,7 +60,7 @@ def run_skyreels_sync(job_id: str):
             "negative_prompt": job.negative_prompt,
             "num_frames": job.frames,
             "num_inference_steps": 30,
-            "guidance_scale": 5.0 if job.mode == "i2v" else 6.0,
+            "guidance_scale": 6.0 if job.mode == "t2v" else 5.0,
             "generator": torch.Generator(device=device).manual_seed(seed),
             "height": job.height,
             "width": job.width,
@@ -82,24 +82,44 @@ def run_skyreels_sync(job_id: str):
 
         
         if job.mode == "i2v":
-            vae = AutoencoderKLWan.from_pretrained(
-                I2V_MODEL_ID,
-                subfolder="vae",
-                torch_dtype=torch.float32,
-                local_files_only=True,
-                use_safetensors=True,
-            )
-            pipe = SkyReelsV2ImageToVideoPipeline.from_pretrained(
-                I2V_MODEL_ID, 
-                vae=vae,
-                torch_dtype=torch.bfloat16,
-                use_safetensors=True,
-                local_files_only=True
-            )
-            pipe.scheduler = UniPCMultistepScheduler.from_config(
-                pipe.scheduler.config,
-                flow_shift=5.0,
-            )
+            if job.frames > 97:
+                vae = AutoencoderKLWan.from_pretrained(
+                    DF_MODEL_ID,
+                    subfolder="vae",
+                    torch_dtype=torch.float32,
+                    local_files_only=True,
+                    use_safetensors=True,
+                )
+                pipe = SkyReelsV2DiffusionForcingImageToVideoPipeline.from_pretrained(
+                    DF_MODEL_ID, 
+                    vae=vae,
+                    torch_dtype=torch.bfloat16,
+                    use_safetensors=True,
+                    local_files_only=True
+                )
+                pipe.scheduler = UniPCMultistepScheduler.from_config(
+                    pipe.scheduler.config,
+                    flow_shift=5.0,
+                )
+            else:
+                vae = AutoencoderKLWan.from_pretrained(
+                    I2V_MODEL_ID,
+                    subfolder="vae",
+                    torch_dtype=torch.float32,
+                    local_files_only=True,
+                    use_safetensors=True,
+                )
+                pipe = SkyReelsV2ImageToVideoPipeline.from_pretrained(
+                    I2V_MODEL_ID, 
+                    vae=vae,
+                    torch_dtype=torch.bfloat16,
+                    use_safetensors=True,
+                    local_files_only=True
+                )
+                pipe.scheduler = UniPCMultistepScheduler.from_config(
+                    pipe.scheduler.config,
+                    flow_shift=5.0,
+                )
             
             if offload:
                 pipe.enable_sequential_cpu_offload()
@@ -110,11 +130,12 @@ def run_skyreels_sync(job_id: str):
             kwargs["image"] = image
             
             # Remover parametros que I2V estándar podría no soportar en Diffusers base
-            kwargs.pop("ar_step", None)
-            kwargs.pop("causal_block_size", None)
-            kwargs.pop("overlap_history", None)
-            kwargs.pop("addnoise_condition", None)
-            kwargs.pop("base_num_frames", None)
+            if job.frames <= 97:
+                kwargs.pop("ar_step", None)
+                kwargs.pop("causal_block_size", None)
+                kwargs.pop("overlap_history", None)
+                kwargs.pop("addnoise_condition", None)
+                kwargs.pop("base_num_frames", None)
             
             # Use diffusers native precision management
             video_frames = pipe(**kwargs).frames[0]
@@ -164,7 +185,7 @@ def run_skyreels_sync(job_id: str):
             )
             pipe.scheduler = UniPCMultistepScheduler.from_config(
                 pipe.scheduler.config,
-                flow_shift=8.0,
+                flow_shift=5.0,
             )
             
             if offload:
@@ -197,7 +218,7 @@ def run_skyreels_sync(job_id: str):
             )
             pipe.scheduler = UniPCMultistepScheduler.from_config(
                 pipe.scheduler.config,
-                flow_shift=8.0,
+                flow_shift=5.0,
             )
             
             if offload:
@@ -216,10 +237,11 @@ def run_skyreels_sync(job_id: str):
         if device == "cuda":
             torch.cuda.empty_cache()
             
-        raw_path = f"/app/data/outputs/{job.id}_raw.mp4"
+        DATA_DIR = os.getenv("DATA_DIR", "/app/data")
+        raw_path = f"{DATA_DIR}/outputs/{job.id}_raw.mp4"
         imageio.mimwrite(raw_path, video_frames, fps=24, quality=8, output_params=["-loglevel", "error"])
         
-        final_path = f"/app/data/outputs/{job.id}.mp4"
+        final_path = f"{DATA_DIR}/outputs/{job.id}.mp4"
         crf = os.environ.get("FFMPEG_CRF", "18")
         
         target_w, target_h = (1280, 720) if job.width > job.height else (720, 1280)

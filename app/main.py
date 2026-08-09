@@ -19,8 +19,9 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Local Video Studio (SkyReels)")
 
-INPUTS_DIR = Path("/app/data/inputs")
-OUTPUTS_DIR = Path("/app/data/outputs")
+DATA_DIR = Path(os.getenv("DATA_DIR", "/app/data"))
+INPUTS_DIR = DATA_DIR / "inputs"
+OUTPUTS_DIR = DATA_DIR / "outputs"
 INPUTS_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -156,7 +157,16 @@ async def generate_video(
     if orientation not in valid_orientations:
         raise HTTPException(status_code=400, detail=f"Orientación inválida: {orientation}")
 
-    if mode == "i2v":
+    if not 1 <= duration_seconds <= 15:
+        raise HTTPException(status_code=400, detail="La duración debe estar entre 1 y 15 segundos.")
+    if ar_step < 0:
+        raise HTTPException(status_code=400, detail="ar_step debe ser >= 0")
+    if overlap_history < 0:
+        raise HTTPException(status_code=400, detail="overlap_history debe ser >= 0")
+    if addnoise_condition < 0:
+        raise HTTPException(status_code=400, detail="addnoise_condition debe ser >= 0")
+
+    if mode == "i2v" and duration_seconds <= 4:
         model_path = base_model_dir / "SkyReels-V2-I2V-1.3B-540P-Diffusers"
     else:
         model_path = base_model_dir / "SkyReels-V2-DF-1.3B-540P-Diffusers"
@@ -202,7 +212,8 @@ async def generate_video(
     else: # native
         width, height = (960, 544) if orientation == "horizontal" else (544, 960)
         
-    num_frames = duration_seconds * 24
+    # SkyReels: los frames deben cumplir (N - 1) % 4 == 0 para el DF
+    num_frames = ((duration_seconds * 24 - 1) // 4) * 4 + 1
         
     new_job = Job(
         id=job_id,

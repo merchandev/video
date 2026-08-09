@@ -22,15 +22,17 @@ async def queue_job(job_id: str):
             # Recargar objeto db que se quedó viejo
             job = db.query(Job).filter(Job.id == job_id).first()
             if job:
-                if success:
+                if job.status == "cancelled":
+                    pass
+                elif success:
                     job.status = "completed"
-                elif job.status != "cancelled":
+                else:
                     job.status = "failed"
                     job.error = error_msg
                 db.commit()
         except Exception as e:
             job = db.query(Job).filter(Job.id == job_id).first()
-            if job:
+            if job and job.status != "cancelled":
                 job.status = "failed"
                 job.error = str(e)
                 db.commit()

@@ -2,7 +2,8 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-DB_DIR = "/app/data/db"
+DATA_DIR = os.getenv("DATA_DIR", "/app/data")
+DB_DIR = f"{DATA_DIR}/db"
 os.makedirs(DB_DIR, exist_ok=True)
 SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_DIR}/jobs.db"
 

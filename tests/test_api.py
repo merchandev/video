@@ -4,8 +4,14 @@ from app.main import app
 import os
 import tempfile
 from PIL import Image
+from unittest.mock import patch
 
 client = TestClient(app)
+
+@pytest.fixture(autouse=True)
+def mock_model_files():
+    with patch("app.main.Path.exists", return_value=True):
+        yield
 
 def test_health_check():
     response = client.get("/api/health")
@@ -55,6 +61,44 @@ def test_generate_i2v_valid_image():
                 files={"image": ("test.png", file_to_upload, "image/png")}
             )
             assert response.status_code == 200
+    os.remove(f.name)
+
+def test_generate_invalid_mode():
+    response = client.post(
+        "/api/generate",
+        data={
+            "mode": "invalido",
+            "prompt": "Test"
+        }
+    )
+    assert response.status_code == 400
+    assert "Modo inválido" in response.json()["detail"]
+
+def test_generate_invalid_duration():
+    response = client.post(
+        "/api/generate",
+        data={
+            "mode": "t2v",
+            "prompt": "Test",
+            "duration_seconds": 100
+        }
+    )
+    assert response.status_code == 400
+    assert "duración" in response.json()["detail"].lower()
+
+def test_generate_first_last_without_end_image():
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+        img = Image.new("RGB", (100, 100), color="red")
+        img.save(f, format="PNG")
+        f.flush()
+        with open(f.name, "rb") as file_to_upload:
+            response = client.post(
+                "/api/generate",
+                data={"mode": "first_last", "prompt": "Test"},
+                files={"image": ("test.png", file_to_upload, "image/png")}
+            )
+            assert response.status_code == 400
+            assert "end_image" in response.json()["detail"]
     os.remove(f.name)
 
 def test_job_not_found():
