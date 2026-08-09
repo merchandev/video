@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 from app.db.database import SessionLocal
 from app.db.models import Job
 from app.model_manager import generate_video_safe
@@ -14,6 +15,7 @@ async def queue_job(job_id: str):
                 return
                 
             job.status = "processing"
+            job.started_at = datetime.utcnow()
             db.commit()
             
             # Ejecutar inferencia
@@ -22,6 +24,7 @@ async def queue_job(job_id: str):
             # Recargar objeto db que se quedó viejo
             job = db.query(Job).filter(Job.id == job_id).first()
             if job:
+                job.finished_at = datetime.utcnow()
                 if job.status == "cancelled":
                     pass
                 elif success:
@@ -34,6 +37,7 @@ async def queue_job(job_id: str):
             job = db.query(Job).filter(Job.id == job_id).first()
             if job and job.status != "cancelled":
                 job.status = "failed"
+                job.finished_at = datetime.utcnow()
                 job.error = str(e)
                 db.commit()
         finally:

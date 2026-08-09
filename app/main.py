@@ -65,15 +65,17 @@ async def process_image(file_obj: UploadFile, prefix: str) -> str:
         raise HTTPException(status_code=400, detail=f"Imagen inválida: {str(e)}")
 
 def validate_model_integrity(model_path: Path, model_type: str) -> bool:
+    import json
     required = [
         "model_index.json",
         "transformer/config.json",
         "vae/diffusion_pytorch_model.safetensors",
-        "tokenizer/vocab.json",
-        "tokenizer/merges.txt",
+        "tokenizer/special_tokens_map.json",
+        "tokenizer/spiece.model",
+        "tokenizer/tokenizer.json",
+        "tokenizer/tokenizer_config.json",
         "scheduler/scheduler_config.json",
         "text_encoder/config.json",
-        "text_encoder/model.safetensors.index.json"
     ]
     if model_type == "i2v":
         required.extend([
@@ -85,6 +87,30 @@ def validate_model_integrity(model_path: Path, model_type: str) -> bool:
     for req in required:
         if not (model_path / req).exists():
             return False
+            
+    indexes = [
+        "transformer/diffusion_pytorch_model.safetensors.index.json",
+        "text_encoder/model.safetensors.index.json"
+    ]
+    
+    for idx_file in indexes:
+        idx_path = model_path / idx_file
+        if idx_path.exists():
+            try:
+                with open(idx_path, "r", encoding="utf-8") as f:
+                    idx_data = json.load(f)
+                shards = set(idx_data.get("weight_map", {}).values())
+                for shard in shards:
+                    if not (idx_path.parent / shard).exists():
+                        return False
+            except Exception:
+                return False
+        else:
+            # If index is missing, verify the un-sharded file exists
+            unsharded_name = "diffusion_pytorch_model.safetensors" if "transformer" in idx_file else "model.safetensors"
+            if not (idx_path.parent / unsharded_name).exists():
+                return False
+
     return True
 
 @app.get("/api/health")
@@ -106,8 +132,8 @@ def readiness_check():
         health_data["gpu_name"] = torch.cuda.get_device_name(0)
         
     base_model_dir = Path(os.environ.get("MODEL_DIR_BASE", "/models"))
-    i2v_path = base_model_dir / "SkyReels-V2-I2V-1.3B-540P-Diffusers"
-    df_path = base_model_dir / "SkyReels-V2-DF-1.3B-540P-Diffusers"
+    i2v_path = Path(os.environ.get("SKYREELS_I2V_MODEL_ID", base_model_dir / "SkyReels-V2-I2V-1.3B-540P-Diffusers"))
+    df_path = Path(os.environ.get("SKYREELS_DF_MODEL_ID", base_model_dir / "SkyReels-V2-DF-1.3B-540P-Diffusers"))
     
     health_data["models"] = {
         "i2v": {
@@ -162,11 +188,15 @@ async def generate_video(
     if addnoise_condition < 0:
         raise HTTPException(status_code=400, detail="addnoise_condition debe ser >= 0")
 
+    base_model_dir = Path(os.environ.get("MODEL_DIR_BASE", "/models"))
+    i2v_path = Path(os.environ.get("SKYREELS_I2V_MODEL_ID", base_model_dir / "SkyReels-V2-I2V-1.3B-540P-Diffusers"))
+    df_path = Path(os.environ.get("SKYREELS_DF_MODEL_ID", base_model_dir / "SkyReels-V2-DF-1.3B-540P-Diffusers"))
+    
     if mode == "i2v" and duration_seconds <= 4:
-        model_path = base_model_dir / "SkyReels-V2-I2V-1.3B-540P-Diffusers"
+        model_path = i2v_path
         model_type = "i2v"
     else:
-        model_path = base_model_dir / "SkyReels-V2-DF-1.3B-540P-Diffusers"
+        model_path = df_path
         model_type = "df"
         
     if not validate_model_integrity(model_path, model_type):
@@ -197,6 +227,8 @@ async def generate_video(
         end_image_path = await process_image(end_image, f"{job_id}_end")
         
     if mode == "extend" and video:
+        if video.size and video.size > 50 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="El video excede el límite de 50MB.")
         video_path = str(INPUTS_DIR / f"{job_id}_ext.mp4")
         import shutil
         with open(video_path, "wb") as f:
@@ -216,13 +248,13 @@ async def generate_video(
     else:
         num_frames = ((duration_seconds * 24 - 1) // 4) * 4 + 1
         
-    if ar_step > 0:
-        causal_block_size = 5
-        latent_frames = (num_frames - 1) // 4 + 1
-        if latent_frames % causal_block_size != 0:
-            # Auto-corregir num_frames
-            latent_frames = ((latent_frames + causal_block_size - 1) // causal_block_size) * causal_block_size
-            num_frames = (latent_frames - 1) * 4 + 1
+        if ar_step > 0:
+            causal_block_size = 5
+            latent_frames = (num_frames - 1) // 4 + 1
+            if latent_frames % causal_block_size != 0:
+                # Auto-corregir num_frames
+                latent_frames = ((latent_frames + causal_block_size - 1) // causal_block_size) * causal_block_size
+                num_frames = (latent_frames - 1) * 4 + 1
         
     new_job = Job(
         id=job_id,
@@ -270,10 +302,22 @@ async def get_job(job_id: str, db: Session = Depends(get_db)):
         "video_url": f"/api/jobs/{job_id}/video" if job.status == "completed" else None,
         "params": {
             "prompt": job.prompt,
+            "negative_prompt": job.negative_prompt,
             "seed": job.seed,
             "mode": job.mode,
-            "profile": job.profile
-        }
+            "profile": job.profile,
+            "width": job.width,
+            "height": job.height,
+            "frames": job.frames,
+            "orientation": "horizontal" if job.width > job.height else "vertical",
+            "ar_step": job.ar_step,
+            "overlap_history": job.overlap_history,
+            "addnoise_condition": job.addnoise_condition,
+            "guidance_scale": 6.0 if job.mode == "t2v" else 5.0,
+            "num_inference_steps": 30
+        },
+        "started_at": job.started_at.isoformat() if job.started_at else None,
+        "finished_at": job.finished_at.isoformat() if job.finished_at else None
     }
 
 @app.post("/api/jobs/{job_id}/cancel")
@@ -282,10 +326,12 @@ async def cancel_job(job_id: str, db: Session = Depends(get_db)):
     if not job:
         raise HTTPException(status_code=404, detail="Not found")
         
+    if job.status in ["completed", "failed"]:
+        raise HTTPException(status_code=409, detail=f"Cannot cancel a job in state: {job.status}")
+        
     if job.status in ["queued", "processing"]:
         job.status = "cancelled"
         db.commit()
-        # En una arquitectura multi-process aquí mataríamos el subproceso del worker
         
     return {"status": "cancelled"}
 

@@ -37,12 +37,22 @@ document.addEventListener('DOMContentLoaded', () => {
         advancedSettings.classList.toggle('open');
     });
 
+    const durationLabel = document.querySelector('label[for="duration_seconds"]');
+
     // Mode logic
     modeSelect.addEventListener('change', (e) => {
         const mode = e.target.value;
         groupImage.classList.add('hidden');
         groupEndImage.classList.add('hidden');
         groupVideo.classList.add('hidden');
+        
+        if (durationLabel) {
+            if (mode === 'extend') {
+                durationLabel.textContent = 'Duración adicional a generar (segundos)';
+            } else {
+                durationLabel.textContent = 'Duración (segundos)';
+            }
+        }
         
         if (mode === 'i2v') {
             groupImage.classList.remove('hidden');

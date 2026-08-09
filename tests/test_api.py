@@ -111,3 +111,63 @@ def test_generate_first_last_without_end_image():
 def test_job_not_found():
     response = client.get("/api/jobs/inventado")
     assert response.status_code == 404
+
+def test_validate_model_integrity():
+    from app.main import validate_model_integrity
+    from pathlib import Path
+    import json
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        model_path = Path(tmpdir)
+        
+        # Test 1: Empty directory should fail
+        assert not validate_model_integrity(model_path, "df")
+        
+        # Create all required base files
+        required = [
+            "model_index.json",
+            "transformer/config.json",
+            "vae/diffusion_pytorch_model.safetensors",
+            "tokenizer/special_tokens_map.json",
+            "tokenizer/spiece.model",
+            "tokenizer/tokenizer.json",
+            "tokenizer/tokenizer_config.json",
+            "scheduler/scheduler_config.json",
+            "text_encoder/config.json",
+        ]
+        for req in required:
+            file_path = model_path / req
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            file_path.touch()
+            
+        # Also need unsharded files because we don't have indexes yet
+        (model_path / "transformer/diffusion_pytorch_model.safetensors").touch()
+        (model_path / "text_encoder/model.safetensors").touch()
+            
+        # Test 2: Valid unsharded DF model
+        assert validate_model_integrity(model_path, "df")
+        
+        # Test 3: Valid I2V model (needs more files)
+        assert not validate_model_integrity(model_path, "i2v")
+        i2v_reqs = [
+            "image_encoder/config.json",
+            "image_encoder/model.safetensors",
+            "image_processor/preprocessor_config.json"
+        ]
+        for req in i2v_reqs:
+            file_path = model_path / req
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            file_path.touch()
+        assert validate_model_integrity(model_path, "i2v")
+        
+        # Test 4: Sharded index with missing shard
+        os.remove(model_path / "transformer/diffusion_pytorch_model.safetensors")
+        index_path = model_path / "transformer/diffusion_pytorch_model.safetensors.index.json"
+        with open(index_path, "w") as f:
+            json.dump({"weight_map": {"some_layer": "shard-00001.safetensors"}}, f)
+        
+        assert not validate_model_integrity(model_path, "df")
+        
+        # Test 5: Sharded index with present shard
+        (model_path / "transformer/shard-00001.safetensors").touch()
+        assert validate_model_integrity(model_path, "df")

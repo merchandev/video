@@ -1,3 +1,5 @@
+$ErrorActionPreference = 'Stop'
+
 Write-Host "=== Instalación de Local Video Studio (SkyReels V2) ==="
 
 Write-Host "`n1. Diagnóstico de Sistema..."

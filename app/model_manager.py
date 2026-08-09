@@ -194,8 +194,11 @@ def run_skyreels_sync(job_id: str):
             else:
                 pipe.to(device)
                 
+            from PIL import Image
             image = load_image(job.image_path).convert("RGB")
             last_image = load_image(job.end_image_path).convert("RGB")
+            if image.size != last_image.size:
+                last_image = last_image.resize(image.size, Image.Resampling.LANCZOS)
             kwargs["image"] = image
             kwargs["last_image"] = last_image
             
