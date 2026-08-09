@@ -165,15 +165,27 @@ document.addEventListener('DOMContentLoaded', () => {
         submitBtn.disabled = true;
         submitBtn.textContent = "COMPROBANDO MODELO...";
         
+        const baseFormData = new FormData(form);
+        const mode = baseFormData.get('mode');
+        
         try {
             const statusRes = await fetch("/api/health");
             if (statusRes.ok) {
                 const statusData = await statusRes.json();
-                if (statusData.models && statusData.models.i2v && !statusData.models.i2v.ready) {
-                    alert("MODELO INCOMPLETO.\n\nEspera a que termine la descarga antes de generar.");
-                    submitBtn.disabled = false;
-                    submitBtn.innerHTML = 'GENERAR VIDEOS <span class="btn-glow"></span>';
-                    return;
+                if (statusData.models) {
+                    let isReady = false;
+                    if (mode === 'i2v') {
+                        isReady = statusData.models.i2v && statusData.models.i2v.ready;
+                    } else {
+                        isReady = statusData.models.df && statusData.models.df.ready;
+                    }
+                    
+                    if (!isReady) {
+                        alert("MODELO INCOMPLETO.\n\nEspera a que termine la descarga antes de generar.");
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = 'GENERAR VIDEOS <span class="btn-glow"></span>';
+                        return;
+                    }
                 }
             }
         } catch (err) {
@@ -181,9 +193,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         submitBtn.textContent = "ENVIANDO LOTE...";
-        
-        const baseFormData = new FormData(form);
-        const mode = baseFormData.get('mode');
         
         let fileList = [];
         

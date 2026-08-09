@@ -144,6 +144,18 @@ async def generate_video(
         "vae/diffusion_pytorch_model.safetensors",
     ]
     
+    valid_modes = ["i2v", "t2v", "first_last", "extend"]
+    if mode not in valid_modes:
+        raise HTTPException(status_code=400, detail=f"Modo inválido: {mode}")
+
+    valid_profiles = ["extreme", "low", "native"]
+    if profile not in valid_profiles:
+        raise HTTPException(status_code=400, detail=f"Perfil inválido: {profile}")
+        
+    valid_orientations = ["horizontal", "vertical"]
+    if orientation not in valid_orientations:
+        raise HTTPException(status_code=400, detail=f"Orientación inválida: {orientation}")
+
     if mode == "i2v":
         model_path = base_model_dir / "SkyReels-V2-I2V-1.3B-540P-Diffusers"
     else:
@@ -184,14 +196,13 @@ async def generate_video(
             
     # Base frames según perfil (reducción para VRAM)
     if profile == "extreme":
-        base_num_frames = 57
         width, height = (640, 368) if orientation == "horizontal" else (368, 640)
     elif profile == "low":
-        base_num_frames = 77
         width, height = (768, 432) if orientation == "horizontal" else (432, 768)
     else: # native
-        base_num_frames = 97
         width, height = (960, 544) if orientation == "horizontal" else (544, 960)
+        
+    num_frames = duration_seconds * 24
         
     new_job = Job(
         id=job_id,
@@ -205,7 +216,7 @@ async def generate_video(
         profile=profile,
         width=width,
         height=height,
-        frames=base_num_frames,
+        frames=num_frames,
         ar_step=ar_step,
         overlap_history=overlap_history,
         addnoise_condition=addnoise_condition,

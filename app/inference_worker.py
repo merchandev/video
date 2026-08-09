@@ -24,7 +24,7 @@ async def queue_job(job_id: str):
             if job:
                 if success:
                     job.status = "completed"
-                else:
+                elif job.status != "cancelled":
                     job.status = "failed"
                     job.error = error_msg
                 db.commit()

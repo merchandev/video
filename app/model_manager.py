@@ -28,6 +28,9 @@ def run_skyreels_sync(job_id: str):
         return False, "Job not found"
         
     def progress_callback(pipe, step, timestep, callback_kwargs):
+        db.refresh(job)
+        if job.status == "cancelled":
+            raise Exception("Job cancelled by user")
         job.current_step = step
         db.commit()
         return callback_kwargs
@@ -48,6 +51,9 @@ def run_skyreels_sync(job_id: str):
             torch.cuda.empty_cache()
             
         seed = job.seed if job.seed != -1 else torch.randint(0, 1000000, (1,)).item()
+        if job.seed == -1:
+            job.seed = seed
+            db.commit()
         
         kwargs = {
             "prompt": job.prompt,
@@ -61,7 +67,12 @@ def run_skyreels_sync(job_id: str):
             "callback_on_step_end": progress_callback
         }
         
-        base_num_frames = 57 if job.profile == "extreme" else 77
+        if job.profile == "extreme":
+            base_num_frames = 57
+        elif job.profile == "low":
+            base_num_frames = 77
+        else:
+            base_num_frames = 97
         # Parámetros avanzados para el modelo
         kwargs["base_num_frames"] = base_num_frames
         kwargs["ar_step"] = job.ar_step
