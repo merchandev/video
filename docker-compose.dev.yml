@@ -1,0 +1,6 @@
+services:
+  api:
+    volumes:
+      - ./app:/app
+      - ./data:/app/data
+    command: uvicorn app.main:app --host 0.0.0.0 --port 7860 --reload

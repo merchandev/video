@@ -1,0 +1,37 @@
+{
+  "3": {
+    "inputs": {
+      "text": "Prompt text goes here"
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "4": {
+    "inputs": {
+      "text": "Negative prompt goes here"
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Negative Prompt)"
+    }
+  },
+  "5": {
+    "inputs": {
+      "model": ["ModelLoader_ID", 0],
+      "seed": 12345,
+      "steps": 20,
+      "cfg": 8.0,
+      "sampler_name": "euler",
+      "scheduler": "normal",
+      "positive": ["3", 0],
+      "negative": ["4", 0],
+      "latent_image": ["EmptyLatentImage_ID", 0]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  }
+}
