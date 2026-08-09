@@ -31,26 +31,26 @@
                     </div>
 
                     <div class="form-group" id="group-image">
-                        <label for="image">Imagen inicial</label>
+                        <label for="image">Imágenes iniciales (Hasta 20)</label>
                         <div class="file-drop-area">
-                            <span class="file-msg" id="msg-image">Arrastra tu imagen o haz clic aquí</span>
-                            <input class="file-input" type="file" id="image" name="image" accept="image/*">
+                            <span class="file-msg" id="msg-image">Arrastra tus imágenes o haz clic aquí</span>
+                            <input class="file-input" type="file" id="image" name="image" accept="image/*" multiple>
                         </div>
                     </div>
 
                     <div class="form-group hidden" id="group-end-image">
-                        <label for="end_image">Imagen final</label>
+                        <label for="end_image">Imágenes finales (Opcional, igual cantidad)</label>
                         <div class="file-drop-area">
-                            <span class="file-msg" id="msg-end-image">Sube la imagen de destino...</span>
-                            <input class="file-input" type="file" id="end_image" name="end_image" accept="image/*">
+                            <span class="file-msg" id="msg-end-image">Sube las imágenes de destino...</span>
+                            <input class="file-input" type="file" id="end_image" name="end_image" accept="image/*" multiple>
                         </div>
                     </div>
 
                     <div class="form-group hidden" id="group-video">
-                        <label for="video">Video base (a extender)</label>
+                        <label for="video">Videos base a extender (Hasta 20)</label>
                         <div class="file-drop-area">
-                            <span class="file-msg" id="msg-video">Sube el MP4 base...</span>
-                            <input class="file-input" type="file" id="video" name="video" accept="video/mp4">
+                            <span class="file-msg" id="msg-video">Sube los MP4 base...</span>
+                            <input class="file-input" type="file" id="video" name="video" accept="video/mp4" multiple>
                         </div>
                     </div>
 
@@ -116,7 +116,7 @@
                     </div>
 
                     <button type="submit" class="btn-primary" id="generate-btn">
-                        GENERAR VIDEO
+                        GENERAR VIDEOS
                         <span class="btn-glow"></span>
                     </button>
                 </form>
@@ -126,24 +126,11 @@
                 <div class="status-container" id="status-container">
                     <div class="empty-state" id="empty-state">
                         <svg viewBox="0 0 24 24" width="48" height="48" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" fill="none"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line><line x1="2" y1="7" x2="7" y2="7"></line><line x1="2" y1="17" x2="7" y2="17"></line><line x1="17" y1="17" x2="22" y2="17"></line><line x1="17" y1="7" x2="22" y2="7"></line></svg>
-                        <p>Tu video aparecerá aquí</p>
+                        <p>Los videos generados aparecerán aquí en cola</p>
                     </div>
                     
-                    <div class="progress-state hidden" id="progress-state">
-                        <h3 id="progress-text">Preparando...</h3>
-                        <div class="progress-bar-container">
-                            <div class="progress-bar" id="progress-bar"></div>
-                        </div>
-                        <div class="log-container" id="log-container"></div>
-                        <button class="btn-danger" id="cancel-btn">Cancelar Generación</button>
-                    </div>
-
-                    <div class="result-state hidden" id="result-state">
-                        <video id="result-video" controls loop autoplay playsinline></video>
-                        <div class="actions">
-                            <a href="#" id="download-mp4" class="btn-secondary" download>Descargar Video</a>
-                            <a href="#" id="download-json" class="btn-secondary" download>Metadata JSON</a>
-                        </div>
+                    <div class="jobs-grid hidden" id="jobs-grid">
+                        <!-- Las tarjetas de trabajos individuales se insertarán aquí dinámicamente -->
                     </div>
                 </div>
             </section>
