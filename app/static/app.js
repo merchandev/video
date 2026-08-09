@@ -242,7 +242,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     activeJobs.push({ id: data.job_id, status: 'queued', interval: interval });
                 } else {
                     const errData = await res.json();
-                    alert(`Error en el video #${i+1}: ${errData.detail || 'Petición rechazada'}`);
+                    let detailMsg = errData.detail;
+                    if (typeof detailMsg === 'object') {
+                        if (Array.isArray(detailMsg)) {
+                            detailMsg = detailMsg.map(d => `${d.loc ? d.loc.join('->') + ': ' : ''}${d.msg}`).join('\n');
+                        } else {
+                            detailMsg = JSON.stringify(detailMsg);
+                        }
+                    }
+                    alert(`Error en el video #${i+1}:\n${detailMsg || 'Petición rechazada'}`);
                 }
             } catch (err) {
                 console.error("Error submitting job", i, err);
