@@ -201,5 +201,5 @@ async def get_job_video(job_id: str, db: Session = Depends(get_db)):
     return FileResponse(output_path, media_type="video/mp4")
 
 # UI Estática
-os.makedirs("/app/static", exist_ok=True)
-app.mount("/", StaticFiles(directory="/app/static", html=True), name="static")
+os.makedirs("/app/app/static", exist_ok=True)
+app.mount("/", StaticFiles(directory="/app/app/static", html=True), name="static")
