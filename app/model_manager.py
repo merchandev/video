@@ -3,11 +3,14 @@ import gc
 import asyncio
 import torch
 import imageio
-from diffusers.utils import load_image
+from diffusers.utils import load_image, load_video
 from diffusers import (
     SkyReelsV2ImageToVideoPipeline,
     SkyReelsV2DiffusionForcingPipeline,
+    SkyReelsV2DiffusionForcingImageToVideoPipeline,
     SkyReelsV2DiffusionForcingVideoToVideoPipeline,
+    AutoencoderKLWan,
+    UniPCMultistepScheduler,
 )
 from app.db.models import Job
 from app.db.database import SessionLocal
@@ -51,19 +54,27 @@ def run_skyreels_sync(job_id: str):
             "negative_prompt": job.negative_prompt,
             "num_frames": job.frames,
             "num_inference_steps": 30,
-            "guidance_scale": 6.0,
+            "guidance_scale": 5.0 if job.mode == "i2v" else 6.0,
             "generator": torch.Generator(device=device).manual_seed(seed),
             "height": job.height,
             "width": job.width,
             "callback_on_step_end": progress_callback
         }
         
+        base_num_frames = 57 if job.profile == "extreme" else 77
+        # Parámetros avanzados para el modelo
+        kwargs["base_num_frames"] = base_num_frames
+        kwargs["ar_step"] = job.ar_step
+        kwargs["causal_block_size"] = 5 if job.ar_step > 0 else None
+        kwargs["overlap_history"] = job.overlap_history if job.frames > base_num_frames else None
+        kwargs["addnoise_condition"] = job.addnoise_condition
+
+        
         if job.mode == "i2v":
-            from diffusers import AutoencoderKLWan, UniPCMultistepScheduler
             vae = AutoencoderKLWan.from_pretrained(
                 I2V_MODEL_ID,
                 subfolder="vae",
-                torch_dtype=torch.bfloat16,
+                torch_dtype=torch.float32,
                 local_files_only=True,
                 use_safetensors=True,
             )
@@ -86,34 +97,68 @@ def run_skyreels_sync(job_id: str):
                 
             image = load_image(job.image_path).convert("RGB")
             kwargs["image"] = image
-            # No enviamos shift aquí porque ya lo configuramos en el Scheduler flow_shift=5.0
             
-            with torch.autocast("cuda"):
+            # Remover parametros que I2V estándar podría no soportar en Diffusers base
+            kwargs.pop("ar_step", None)
+            kwargs.pop("causal_block_size", None)
+            kwargs.pop("overlap_history", None)
+            kwargs.pop("addnoise_condition", None)
+            kwargs.pop("base_num_frames", None)
+            
+            # Use autocast dynamically
+            autocast_device = "cuda" if device == "cuda" else "cpu"
+            with torch.autocast(autocast_device):
                 video_frames = pipe(**kwargs).frames[0]
                 
         elif job.mode == "t2v":
+            vae = AutoencoderKLWan.from_pretrained(
+                DF_MODEL_ID,
+                subfolder="vae",
+                torch_dtype=torch.float32,
+                local_files_only=True,
+                use_safetensors=True,
+            )
             pipe = SkyReelsV2DiffusionForcingPipeline.from_pretrained(
-                DF_MODEL_ID, 
+                DF_MODEL_ID,
+                vae=vae,
                 torch_dtype=torch.bfloat16,
                 use_safetensors=True,
                 local_files_only=True
             )
+            pipe.scheduler = UniPCMultistepScheduler.from_config(
+                pipe.scheduler.config,
+                flow_shift=8.0,
+            )
+            
             if offload:
                 pipe.enable_sequential_cpu_offload()
             else:
                 pipe.to(device)
                 
-            kwargs["shift"] = 8.0
-            with torch.autocast("cuda"):
+            autocast_device = "cuda" if device == "cuda" else "cpu"
+            with torch.autocast(autocast_device):
                 video_frames = pipe(**kwargs).frames[0]
                 
         elif job.mode == "first_last":
-            pipe = SkyReelsV2DiffusionForcingPipeline.from_pretrained(
+            vae = AutoencoderKLWan.from_pretrained(
+                DF_MODEL_ID,
+                subfolder="vae",
+                torch_dtype=torch.float32,
+                local_files_only=True,
+                use_safetensors=True,
+            )
+            pipe = SkyReelsV2DiffusionForcingImageToVideoPipeline.from_pretrained(
                 DF_MODEL_ID, 
+                vae=vae,
                 torch_dtype=torch.bfloat16,
                 use_safetensors=True,
                 local_files_only=True
             )
+            pipe.scheduler = UniPCMultistepScheduler.from_config(
+                pipe.scheduler.config,
+                flow_shift=8.0,
+            )
+            
             if offload:
                 pipe.enable_sequential_cpu_offload()
             else:
@@ -123,25 +168,41 @@ def run_skyreels_sync(job_id: str):
             last_image = load_image(job.end_image_path).convert("RGB")
             kwargs["image"] = image
             kwargs["last_image"] = last_image
-            kwargs["shift"] = 8.0
-            with torch.autocast("cuda"):
+            
+            autocast_device = "cuda" if device == "cuda" else "cpu"
+            with torch.autocast(autocast_device):
                 video_frames = pipe(**kwargs).frames[0]
                 
         elif job.mode == "extend":
+            vae = AutoencoderKLWan.from_pretrained(
+                DF_MODEL_ID,
+                subfolder="vae",
+                torch_dtype=torch.float32,
+                local_files_only=True,
+                use_safetensors=True,
+            )
             pipe = SkyReelsV2DiffusionForcingVideoToVideoPipeline.from_pretrained(
                 DF_MODEL_ID, 
+                vae=vae,
                 torch_dtype=torch.bfloat16,
                 use_safetensors=True,
                 local_files_only=True
             )
+            pipe.scheduler = UniPCMultistepScheduler.from_config(
+                pipe.scheduler.config,
+                flow_shift=8.0,
+            )
+            
             if offload:
                 pipe.enable_sequential_cpu_offload()
             else:
                 pipe.to(device)
                 
-            kwargs["video"] = job.video_path
-            kwargs["shift"] = 8.0
-            with torch.autocast("cuda"):
+            video_input = load_video(job.video_path)
+            kwargs["video"] = video_input
+            
+            autocast_device = "cuda" if device == "cuda" else "cpu"
+            with torch.autocast(autocast_device):
                 video_frames = pipe(**kwargs).frames[0]
         
         del pipe
@@ -159,7 +220,7 @@ def run_skyreels_sync(job_id: str):
         
         cmd = [
             "ffmpeg", "-y", "-i", raw_path, 
-            "-vf", f"scale={target_w}:{target_h}:flags=lanczos", 
+            "-vf", f"scale={target_w}:{target_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h}", 
             "-c:v", "libx264", "-crf", crf, "-preset", "slow", "-pix_fmt", "yuv420p", 
             final_path
         ]

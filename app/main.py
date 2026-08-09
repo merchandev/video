@@ -85,6 +85,10 @@ def health_check():
         i2v_ready = len(missing) == 0
 
     df_path = base_model_dir / "SkyReels-V2-DF-1.3B-540P-Diffusers"
+    df_ready = False
+    if df_path.exists():
+        missing_df = [f for f in required_files if not (df_path / f).exists()]
+        df_ready = len(missing_df) == 0
     
     health_data["models"] = {
         "i2v": {
@@ -93,7 +97,7 @@ def health_check():
         },
         "df": {
             "exists": df_path.exists(),
-            "ready": df_path.exists() # Todo: validation estricta para DF si es necesario
+            "ready": df_ready
         }
     }
     
@@ -119,7 +123,6 @@ async def generate_video(
 ):
     # Validación estricta de la integridad del modelo
     base_model_dir = Path(os.environ.get("MODEL_DIR_BASE", "/models"))
-    i2v_path = base_model_dir / "SkyReels-V2-I2V-1.3B-540P-Diffusers"
     
     required_files = [
         "model_index.json",
@@ -129,16 +132,28 @@ async def generate_video(
         "transformer/diffusion_pytorch_model-00002-of-00002.safetensors",
         "vae/diffusion_pytorch_model.safetensors",
     ]
-    missing = [f for f in required_files if not (i2v_path / f).exists()]
+    
+    if mode == "i2v":
+        model_path = base_model_dir / "SkyReels-V2-I2V-1.3B-540P-Diffusers"
+    else:
+        model_path = base_model_dir / "SkyReels-V2-DF-1.3B-540P-Diffusers"
+        
+    missing = [f for f in required_files if not (model_path / f).exists()]
     if missing:
         raise HTTPException(
             status_code=400, 
-            detail=f"MODELO INCOMPLETO. Faltan: {', '.join(missing)}"
+            detail=f"MODELO INCOMPLETO para modo {mode}. Faltan: {', '.join(missing)}"
         )
 
-    # Validar imágenes antes de continuar
+    # Validar imágenes e inputs antes de continuar
     if mode in ["i2v", "first_last"] and not image:
         raise HTTPException(status_code=400, detail="Se requiere una 'image' para el modo seleccionado.")
+    
+    if mode == "first_last" and not end_image:
+        raise HTTPException(status_code=400, detail="Se requiere un 'end_image' para el modo first_last.")
+        
+    if mode == "extend" and not video:
+        raise HTTPException(status_code=400, detail="Se requiere un 'video' para el modo extend.")
 
     job_id = str(uuid.uuid4())
     image_path = None

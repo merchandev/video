@@ -1,10 +1,12 @@
 torch==2.5.1
 torchvision==0.20.1
 opencv-python==4.10.0.84
-diffusers>=0.31.0
+diffusers==0.39.0
 transformers==4.49.0
 tokenizers==0.21.1
 accelerate==1.6.0
+ftfy==6.3.1
+huggingface_hub
 tqdm==4.66.5
 imageio==2.34.2
 imageio-ffmpeg==0.5.1
