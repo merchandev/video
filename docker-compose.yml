@@ -1,34 +1,14 @@
 services:
-  api:
+  video-studio:
     build:
       context: .
-      dockerfile: docker/api.Dockerfile
-    container_name: localwan-api
+      dockerfile: Dockerfile
+    container_name: localwan-video-studio
     ports:
       - "127.0.0.1:7860:7860"
     volumes:
       - ./data:/app/data
-    environment:
-      - COMFYUI_URL=http://comfyui:8188
-    depends_on:
-      - comfyui
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:7860/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  comfyui:
-    build:
-      context: .
-      dockerfile: docker/comfyui.Dockerfile
-    container_name: localwan-comfyui
-    expose:
-      - "8188"
-    volumes:
-      - ./models:/opt/comfyui/models
-      - ./data:/data
+      - ./models:/models
     deploy:
       resources:
         reservations:
@@ -36,9 +16,15 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
+    environment:
+      - SKYREELS_I2V_MODEL_ID=/models/SkyReels-V2-I2V-1.3B-540P-Diffusers
+      - SKYREELS_DF_MODEL_ID=/models/SkyReels-V2-DF-1.3B-540P-Diffusers
+      - DEFAULT_OFFLOAD_MODE=auto
+      - HF_HOME=/models/.cache/huggingface
+      - FFMPEG_CRF=18
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8188/system_stats"]
+      test: ["CMD", "curl", "-f", "http://localhost:7860/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -46,11 +32,9 @@ services:
   model-downloader:
     build:
       context: .
-      dockerfile: docker/api.Dockerfile
+      dockerfile: Dockerfile
     profiles:
       - tools
     volumes:
       - ./models:/models
     command: python /app/scripts/download-models.py
-    environment:
-      - MODEL_DIR=/models/Wan2.2-TI2V-5B

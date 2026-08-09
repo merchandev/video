@@ -1,19 +1,19 @@
-FROM python:3.10-slim
+FROM pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime
 
+ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     curl \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copiamos desde el contexto raíz
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiamos el resto de la aplicación
 COPY . /app
 
 EXPOSE 7860

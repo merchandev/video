@@ -7,7 +7,7 @@ import os
 # Inicializar Base de datos
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="LocalWan Studio V2")
+app = FastAPI(title="Local Video Studio (SkyReels)")
 
 # Routers API
 app.include_router(health.router, prefix="/api")

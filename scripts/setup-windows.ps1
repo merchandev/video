@@ -1,4 +1,4 @@
-Write-Host "=== Instalación de LocalWan Studio ==="
+Write-Host "=== Instalación de Local Video Studio (SkyReels V2) ==="
 
 Write-Host "`n1. Diagnóstico de Sistema..."
 .\scripts\check-gpu.ps1
@@ -17,16 +17,15 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-Write-Host "`n4. Construyendo imágenes V2 (FastAPI y ComfyUI)..."
+Write-Host "`n4. Construyendo imagen V3 (Diffusers Native)..."
 docker compose build
 
-Write-Host "`n5. Descargando pesos de Wan2.2-TI2V-5B..."
+Write-Host "`n5. Descargando pesos de SkyReels V2 (I2V y DF)..."
 docker compose --profile tools run --rm model-downloader
 
-Write-Host "`n6. Iniciando LocalWan Studio V2..."
+Write-Host "`n6. Iniciando Local Video Studio..."
 docker compose up -d
 
 Write-Host "`n=== Todo listo ==="
 Write-Host "Abriendo http://localhost:7860 en tu navegador..."
-Start-Sleep -Seconds 3
 Start-Process "http://localhost:7860"

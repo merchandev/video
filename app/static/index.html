@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LocalWan Studio - Generador de Video</title>
-    <meta name="description" content="Generador de video local basado en Wan2.2-TI2V-5B.">
+    <title>LOCAL VIDEO STUDIO</title>
+    <meta name="description" content="Generador de video local avanzado - SkyReels V2">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="app-background"></div>
     <div class="app-container">
         <header>
-            <h1>LocalWan <span class="accent">Studio</span></h1>
-            <p>Generación Local con Wan2.2-TI2V-5B</p>
+            <h1>LOCAL VIDEO <span class="accent">STUDIO</span></h1>
+            <p>Engine: SkyReels V2</p>
         </header>
 
         <main class="main-content">
@@ -21,34 +21,74 @@
                 <form id="generate-form">
                     
                     <div class="form-group">
-                        <label for="prompt">Prompt Textual</label>
-                        <textarea id="prompt" name="prompt" rows="4" placeholder="Describe la escena cinemática en detalle..." required></textarea>
+                        <label for="mode">Modo</label>
+                        <select id="mode" name="mode">
+                            <option value="i2v">Imagen → Video</option>
+                            <option value="t2v">Texto → Video</option>
+                            <option value="first_last">Primer frame → último frame</option>
+                            <option value="extend">Extender video</option>
+                        </select>
                     </div>
 
-                    <div class="form-group">
-                        <label for="image">Imagen Inicial (Opcional)</label>
+                    <div class="form-group" id="group-image">
+                        <label for="image">Imagen inicial</label>
                         <div class="file-drop-area">
-                            <span class="file-msg">Arrastra tu imagen o haz clic aquí</span>
+                            <span class="file-msg" id="msg-image">Arrastra tu imagen o haz clic aquí</span>
                             <input class="file-input" type="file" id="image" name="image" accept="image/*">
                         </div>
                     </div>
 
-                    <div class="row">
-                        <div class="form-group half">
-                            <label for="orientation">Orientación</label>
-                            <select id="orientation" name="orientation">
-                                <option value="horizontal">Horizontal (1280x720)</option>
-                                <option value="vertical">Vertical (720x1280)</option>
-                            </select>
-                        </div>
-                        <div class="form-group half">
-                            <label for="duration_seconds">Duración (seg)</label>
-                            <input type="number" id="duration_seconds" name="duration_seconds" value="5" min="1" max="15">
+                    <div class="form-group hidden" id="group-end-image">
+                        <label for="end_image">Imagen final</label>
+                        <div class="file-drop-area">
+                            <span class="file-msg" id="msg-end-image">Sube la imagen de destino...</span>
+                            <input class="file-input" type="file" id="end_image" name="end_image" accept="image/*">
                         </div>
                     </div>
 
+                    <div class="form-group hidden" id="group-video">
+                        <label for="video">Video base (a extender)</label>
+                        <div class="file-drop-area">
+                            <span class="file-msg" id="msg-video">Sube el MP4 base...</span>
+                            <input class="file-input" type="file" id="video" name="video" accept="video/mp4">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="prompt">Prompt</label>
+                        <textarea id="prompt" name="prompt" rows="3" placeholder="Describe la escena..."></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="negative_prompt">Negative Prompt</label>
+                        <textarea id="negative_prompt" name="negative_prompt" rows="2">色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走</textarea>
+                    </div>
+
+                    <div class="row">
+                        <div class="form-group half">
+                            <label for="profile">Perfil</label>
+                            <select id="profile" name="profile">
+                                <option value="extreme">RTX 3050 / Extreme</option>
+                                <option value="low">Low VRAM</option>
+                                <option value="native">Native (Alta Calidad)</option>
+                            </select>
+                        </div>
+                        <div class="form-group half">
+                            <label for="orientation">Orientación</label>
+                            <select id="orientation" name="orientation">
+                                <option value="horizontal">Horizontal (16:9)</option>
+                                <option value="vertical">Vertical (9:16)</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="duration_seconds">Duración (segundos)</label>
+                        <input type="number" id="duration_seconds" name="duration_seconds" value="4" min="1" max="15">
+                    </div>
+
                     <div class="advanced-settings-toggle" id="advanced-toggle">
-                        <span>Opciones Avanzadas</span>
+                        <span>Opciones Avanzadas (Diffusion Forcing)</span>
                         <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><polyline points="6 9 12 15 18 9"></polyline></svg>
                     </div>
 
@@ -59,43 +99,24 @@
                                 <input type="number" id="seed" name="seed" value="-1">
                             </div>
                             <div class="form-group half">
-                                <label for="sample_steps">Pasos (Steps)</label>
-                                <input type="number" id="sample_steps" name="sample_steps" value="50">
+                                <label for="ar_step">AR Step</label>
+                                <input type="number" id="ar_step" name="ar_step" value="0">
                             </div>
                         </div>
                         <div class="row">
                             <div class="form-group half">
-                                <label for="guide_scale">CFG Scale</label>
-                                <input type="number" id="guide_scale" name="guide_scale" step="0.1" value="5.0">
+                                <label for="overlap_history">Overlap History</label>
+                                <input type="number" id="overlap_history" name="overlap_history" value="17">
                             </div>
                             <div class="form-group half">
-                                <label for="sample_solver">Solver</label>
-                                <select id="sample_solver" name="sample_solver">
-                                    <option value="unipc">UniPC</option>
-                                    <option value="ddim">DDIM</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="form-group half">
-                                <label for="offload_model">Offload Model</label>
-                                <select id="offload_model" name="offload_model">
-                                    <option value="true">Sí (< 24GB VRAM)</option>
-                                    <option value="false">No (Rápido, requiere 24GB+)</option>
-                                </select>
-                            </div>
-                            <div class="form-group half">
-                                <label for="t5_cpu">T5 en CPU</label>
-                                <select id="t5_cpu" name="t5_cpu">
-                                    <option value="true">Sí (Ahorra VRAM)</option>
-                                    <option value="false">No</option>
-                                </select>
+                                <label for="addnoise_condition">Addnoise Condition</label>
+                                <input type="number" id="addnoise_condition" name="addnoise_condition" value="20" max="60">
                             </div>
                         </div>
                     </div>
 
                     <button type="submit" class="btn-primary" id="generate-btn">
-                        Generar Video
+                        GENERAR VIDEO
                         <span class="btn-glow"></span>
                     </button>
                 </form>
