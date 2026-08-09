@@ -161,7 +161,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
+        
         submitBtn.disabled = true;
+        submitBtn.textContent = "COMPROBANDO MODELO...";
+        
+        try {
+            const statusRes = await fetch("/api/health");
+            if (statusRes.ok) {
+                const statusData = await statusRes.json();
+                if (statusData.models && statusData.models.i2v && !statusData.models.i2v.ready) {
+                    alert("MODELO INCOMPLETO.\n\nEspera a que termine la descarga antes de generar.");
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = 'GENERAR VIDEOS <span class="btn-glow"></span>';
+                    return;
+                }
+            }
+        } catch (err) {
+            console.error("No se pudo comprobar el modelo", err);
+        }
+
         submitBtn.textContent = "ENVIANDO LOTE...";
         
         const baseFormData = new FormData(form);
@@ -222,9 +240,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     const interval = setInterval(() => pollJob(data.job_id), 3000);
                     activeJobs.push({ id: data.job_id, status: 'queued', interval: interval });
+                } else {
+                    const errData = await res.json();
+                    alert(`Error en el video #${i+1}: ${errData.detail || 'Petición rechazada'}`);
                 }
             } catch (err) {
                 console.error("Error submitting job", i, err);
+                alert(`Error de red al enviar el video #${i+1}`);
             }
         }
         

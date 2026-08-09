@@ -69,11 +69,32 @@ def health_check():
     # Verificar modelos
     base_model_dir = Path(os.environ.get("MODEL_DIR_BASE", "/models"))
     i2v_path = base_model_dir / "SkyReels-V2-I2V-1.3B-540P-Diffusers"
+    
+    required_files = [
+        "model_index.json",
+        "transformer/config.json",
+        "transformer/diffusion_pytorch_model.safetensors.index.json",
+        "transformer/diffusion_pytorch_model-00001-of-00002.safetensors",
+        "transformer/diffusion_pytorch_model-00002-of-00002.safetensors",
+        "vae/diffusion_pytorch_model.safetensors",
+    ]
+    
+    i2v_ready = False
+    if i2v_path.exists():
+        missing = [f for f in required_files if not (i2v_path / f).exists()]
+        i2v_ready = len(missing) == 0
+
     df_path = base_model_dir / "SkyReels-V2-DF-1.3B-540P-Diffusers"
     
     health_data["models"] = {
-        "i2v": i2v_path.exists(),
-        "df": df_path.exists()
+        "i2v": {
+            "exists": i2v_path.exists(),
+            "ready": i2v_ready
+        },
+        "df": {
+            "exists": df_path.exists(),
+            "ready": df_path.exists() # Todo: validation estricta para DF si es necesario
+        }
     }
     
     return health_data
