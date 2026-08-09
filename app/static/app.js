@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const groupVideo = document.getElementById('group-video');
     
     // File inputs
-    const inputs = ['image', 'end_image', 'video'];
+    const inputs = ['image', 'end_image', 'video', 'storyboard_images'];
     inputs.forEach(id => {
         const input = document.getElementById(id);
         const msg = document.getElementById(`msg-${id.replace('_', '-')}`);
@@ -52,6 +52,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (durationLabel) {
             if (mode === 'extend') {
                 durationLabel.textContent = 'Duración adicional a generar (segundos)';
+            } else if (mode === 'storyboard') {
+                durationLabel.textContent = 'Duración total del video (segundos)';
             } else {
                 durationLabel.textContent = 'Duración (segundos)';
             }

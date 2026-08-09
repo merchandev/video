@@ -8,6 +8,10 @@ from unittest.mock import patch
 
 client = TestClient(app)
 
+import app.main
+
+original_validate_model_integrity = app.main.validate_model_integrity
+
 @pytest.fixture(autouse=True)
 def mock_model_files():
     with patch("app.main.validate_model_integrity", return_value=True), \
@@ -113,7 +117,6 @@ def test_job_not_found():
     assert response.status_code == 404
 
 def test_validate_model_integrity():
-    from app.main import validate_model_integrity
     from pathlib import Path
     import json
     
@@ -121,7 +124,7 @@ def test_validate_model_integrity():
         model_path = Path(tmpdir)
         
         # Test 1: Empty directory should fail
-        assert not validate_model_integrity(model_path, "df")
+        assert not original_validate_model_integrity(model_path, "df")
         
         # Create all required base files
         required = [
@@ -145,10 +148,10 @@ def test_validate_model_integrity():
         (model_path / "text_encoder/model.safetensors").touch()
             
         # Test 2: Valid unsharded DF model
-        assert validate_model_integrity(model_path, "df")
+        assert original_validate_model_integrity(model_path, "df")
         
         # Test 3: Valid I2V model (needs more files)
-        assert not validate_model_integrity(model_path, "i2v")
+        assert not original_validate_model_integrity(model_path, "i2v")
         i2v_reqs = [
             "image_encoder/config.json",
             "image_encoder/model.safetensors",
@@ -158,7 +161,7 @@ def test_validate_model_integrity():
             file_path = model_path / req
             file_path.parent.mkdir(parents=True, exist_ok=True)
             file_path.touch()
-        assert validate_model_integrity(model_path, "i2v")
+        assert original_validate_model_integrity(model_path, "i2v")
         
         # Test 4: Sharded index with missing shard
         os.remove(model_path / "transformer/diffusion_pytorch_model.safetensors")
@@ -166,8 +169,53 @@ def test_validate_model_integrity():
         with open(index_path, "w") as f:
             json.dump({"weight_map": {"some_layer": "shard-00001.safetensors"}}, f)
         
-        assert not validate_model_integrity(model_path, "df")
+        assert not original_validate_model_integrity(model_path, "df")
         
         # Test 5: Sharded index with present shard
         (model_path / "transformer/shard-00001.safetensors").touch()
-        assert validate_model_integrity(model_path, "df")
+        assert original_validate_model_integrity(model_path, "df")
+
+def test_generate_storyboard_invalid_count():
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+        img = Image.new("RGB", (100, 100), color="blue")
+        img.save(f, format="PNG")
+        f.flush()
+        
+        # 1 image -> should fail (needs >= 2)
+        with open(f.name, "rb") as file_to_upload:
+            response = client.post(
+                "/api/generate",
+                data={"mode": "storyboard", "prompt": "Transition"},
+                files=[("storyboard_images", ("test1.png", file_to_upload, "image/png"))]
+            )
+            assert response.status_code == 400
+            
+    os.remove(f.name)
+
+def test_generate_storyboard_valid():
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f1, \
+         tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f2:
+        
+        img = Image.new("RGB", (100, 100), color="red")
+        img.save(f1, format="PNG")
+        f1.flush()
+        
+        img2 = Image.new("RGB", (100, 100), color="blue")
+        img2.save(f2, format="PNG")
+        f2.flush()
+        
+        with open(f1.name, "rb") as file1, open(f2.name, "rb") as file2:
+            response = client.post(
+                "/api/generate",
+                data={"mode": "storyboard", "prompt": "Red to Blue"},
+                files=[
+                    ("storyboard_images", ("test1.png", file1, "image/png")),
+                    ("storyboard_images", ("test2.png", file2, "image/png"))
+                ]
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert "job_id" in data
+            
+    os.remove(f1.name)
+    os.remove(f2.name)

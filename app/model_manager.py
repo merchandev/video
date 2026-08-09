@@ -266,7 +266,7 @@ def run_skyreels_sync(job_id: str):
             else:
                 pipe.to(device)
                 
-            from PIL import Image
+            from PIL import Image, ImageOps
             all_video_frames = []
             
             total_pairs = len(paths) - 1
@@ -281,10 +281,10 @@ def run_skyreels_sync(job_id: str):
                     base_size = start_img.size
                 else:
                     if start_img.size != base_size:
-                        start_img = start_img.resize(base_size, Image.Resampling.LANCZOS)
+                        start_img = ImageOps.fit(start_img, base_size, method=Image.Resampling.LANCZOS)
                         
                 if end_img.size != base_size:
-                    end_img = end_img.resize(base_size, Image.Resampling.LANCZOS)
+                    end_img = ImageOps.fit(end_img, base_size, method=Image.Resampling.LANCZOS)
                     
                 kwargs["image"] = start_img
                 kwargs["last_image"] = end_img

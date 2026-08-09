@@ -17,6 +17,17 @@ from app.inference_worker import queue_job
 # Inicializar BD
 Base.metadata.create_all(bind=engine)
 
+def migrate_database():
+    from sqlalchemy import inspect, text
+    inspector = inspect(engine)
+    columns = {col["name"] for col in inspector.get_columns("jobs")}
+    
+    if "storyboard_paths" not in columns:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE jobs ADD COLUMN storyboard_paths TEXT"))
+
+migrate_database()
+
 app = FastAPI(title="Local Video Studio (SkyReels)")
 
 DATA_DIR = Path(os.getenv("DATA_DIR", "/app/data"))
@@ -216,8 +227,8 @@ async def generate_video(
     if mode == "extend" and not video:
         raise HTTPException(status_code=400, detail="Se requiere un 'video' para el modo extend.")
         
-    if mode == "storyboard" and (not storyboard_images or len(storyboard_images) < 2):
-        raise HTTPException(status_code=400, detail="Se requieren al menos 2 imágenes para storyboard.")
+    if mode == "storyboard" and (not storyboard_images or not (2 <= len(storyboard_images) <= 20)):
+        raise HTTPException(status_code=400, detail="Storyboard requiere entre 2 y 20 imágenes.")
 
     job_id = str(uuid.uuid4())
     image_path = None
@@ -253,7 +264,12 @@ async def generate_video(
         width, height = (960, 544) if orientation == "horizontal" else (544, 960)
         
     # SkyReels: cálculo de frames
-    if mode == "i2v" and duration_seconds <= 4:
+    if mode == "storyboard" and storyboard_images:
+        total_pairs = max(1, len(storyboard_images) - 1)
+        sec_per_pair = duration_seconds / total_pairs
+        raw_frames = int(sec_per_pair * 24)
+        num_frames = ((raw_frames - 1) // 4) * 4 + 1
+    elif mode == "i2v" and duration_seconds <= 4:
         num_frames = duration_seconds * 24 + 1
     else:
         num_frames = ((duration_seconds * 24 - 1) // 4) * 4 + 1
