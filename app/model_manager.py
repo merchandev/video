@@ -59,9 +59,26 @@ def run_skyreels_sync(job_id: str):
         }
         
         if job.mode == "i2v":
-            pipe = SkyReelsV2ImageToVideoPipeline.from_pretrained(
-                I2V_MODEL_ID, torch_dtype=torch.bfloat16
+            from diffusers import AutoencoderKLWan, UniPCMultistepScheduler
+            vae = AutoencoderKLWan.from_pretrained(
+                I2V_MODEL_ID,
+                subfolder="vae",
+                torch_dtype=torch.bfloat16,
+                local_files_only=True,
+                use_safetensors=True,
             )
+            pipe = SkyReelsV2ImageToVideoPipeline.from_pretrained(
+                I2V_MODEL_ID, 
+                vae=vae,
+                torch_dtype=torch.bfloat16,
+                use_safetensors=True,
+                local_files_only=True
+            )
+            pipe.scheduler = UniPCMultistepScheduler.from_config(
+                pipe.scheduler.config,
+                flow_shift=5.0,
+            )
+            
             if offload:
                 pipe.enable_sequential_cpu_offload()
             else:
@@ -69,14 +86,17 @@ def run_skyreels_sync(job_id: str):
                 
             image = load_image(job.image_path).convert("RGB")
             kwargs["image"] = image
-            kwargs["shift"] = 5.0
+            # No enviamos shift aquí porque ya lo configuramos en el Scheduler flow_shift=5.0
             
             with torch.autocast("cuda"):
                 video_frames = pipe(**kwargs).frames[0]
                 
         elif job.mode == "t2v":
             pipe = SkyReelsV2DiffusionForcingPipeline.from_pretrained(
-                DF_MODEL_ID, torch_dtype=torch.bfloat16
+                DF_MODEL_ID, 
+                torch_dtype=torch.bfloat16,
+                use_safetensors=True,
+                local_files_only=True
             )
             if offload:
                 pipe.enable_sequential_cpu_offload()
@@ -89,7 +109,10 @@ def run_skyreels_sync(job_id: str):
                 
         elif job.mode == "first_last":
             pipe = SkyReelsV2DiffusionForcingPipeline.from_pretrained(
-                DF_MODEL_ID, torch_dtype=torch.bfloat16
+                DF_MODEL_ID, 
+                torch_dtype=torch.bfloat16,
+                use_safetensors=True,
+                local_files_only=True
             )
             if offload:
                 pipe.enable_sequential_cpu_offload()
@@ -106,7 +129,10 @@ def run_skyreels_sync(job_id: str):
                 
         elif job.mode == "extend":
             pipe = SkyReelsV2DiffusionForcingVideoToVideoPipeline.from_pretrained(
-                DF_MODEL_ID, torch_dtype=torch.bfloat16
+                DF_MODEL_ID, 
+                torch_dtype=torch.bfloat16,
+                use_safetensors=True,
+                local_files_only=True
             )
             if offload:
                 pipe.enable_sequential_cpu_offload()

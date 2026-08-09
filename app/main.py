@@ -96,6 +96,29 @@ async def generate_video(
     addnoise_condition: int = Form(20),
     db: Session = Depends(get_db)
 ):
+    # Validación estricta de la integridad del modelo
+    base_model_dir = Path(os.environ.get("MODEL_DIR_BASE", "/models"))
+    i2v_path = base_model_dir / "SkyReels-V2-I2V-1.3B-540P-Diffusers"
+    
+    required_files = [
+        "model_index.json",
+        "transformer/config.json",
+        "transformer/diffusion_pytorch_model.safetensors.index.json",
+        "transformer/diffusion_pytorch_model-00001-of-00002.safetensors",
+        "transformer/diffusion_pytorch_model-00002-of-00002.safetensors",
+        "vae/diffusion_pytorch_model.safetensors",
+    ]
+    missing = [f for f in required_files if not (i2v_path / f).exists()]
+    if missing:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"MODELO INCOMPLETO. Faltan: {', '.join(missing)}"
+        )
+
+    # Validar imágenes antes de continuar
+    if mode in ["i2v", "first_last"] and not image:
+        raise HTTPException(status_code=400, detail="Se requiere una 'image' para el modo seleccionado.")
+
     job_id = str(uuid.uuid4())
     image_path = None
     end_image_path = None
