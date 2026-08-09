@@ -24,6 +24,17 @@ OUTPUTS_DIR = Path("/app/data/outputs")
 INPUTS_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
 
+# Limpiar trabajos atascados por reinicio del contenedor
+@app.on_event("startup")
+def startup_event():
+    db = next(get_db())
+    stuck_jobs = db.query(Job).filter(Job.status.in_(["processing", "queued"])).all()
+    for job in stuck_jobs:
+        job.status = "failed"
+        job.error = "Server restarted / Worker killed"
+    db.commit()
+    db.close()
+
 # CORS no es necesario ya que se sirve todo desde el mismo origen
 
 async def process_image(file_obj: UploadFile, prefix: str) -> str:

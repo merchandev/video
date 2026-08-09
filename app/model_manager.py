@@ -105,10 +105,8 @@ def run_skyreels_sync(job_id: str):
             kwargs.pop("addnoise_condition", None)
             kwargs.pop("base_num_frames", None)
             
-            # Use autocast dynamically
-            autocast_device = "cuda" if device == "cuda" else "cpu"
-            with torch.autocast(autocast_device):
-                video_frames = pipe(**kwargs).frames[0]
+            # Use diffusers native precision management
+            video_frames = pipe(**kwargs).frames[0]
                 
         elif job.mode == "t2v":
             vae = AutoencoderKLWan.from_pretrained(
@@ -135,9 +133,8 @@ def run_skyreels_sync(job_id: str):
             else:
                 pipe.to(device)
                 
-            autocast_device = "cuda" if device == "cuda" else "cpu"
-            with torch.autocast(autocast_device):
-                video_frames = pipe(**kwargs).frames[0]
+            # Use diffusers native precision management
+            video_frames = pipe(**kwargs).frames[0]
                 
         elif job.mode == "first_last":
             vae = AutoencoderKLWan.from_pretrained(
@@ -169,9 +166,8 @@ def run_skyreels_sync(job_id: str):
             kwargs["image"] = image
             kwargs["last_image"] = last_image
             
-            autocast_device = "cuda" if device == "cuda" else "cpu"
-            with torch.autocast(autocast_device):
-                video_frames = pipe(**kwargs).frames[0]
+            # Use diffusers native precision management
+            video_frames = pipe(**kwargs).frames[0]
                 
         elif job.mode == "extend":
             vae = AutoencoderKLWan.from_pretrained(
@@ -201,9 +197,8 @@ def run_skyreels_sync(job_id: str):
             video_input = load_video(job.video_path)
             kwargs["video"] = video_input
             
-            autocast_device = "cuda" if device == "cuda" else "cpu"
-            with torch.autocast(autocast_device):
-                video_frames = pipe(**kwargs).frames[0]
+            # Use diffusers native precision management
+            video_frames = pipe(**kwargs).frames[0]
         
         del pipe
         gc.collect()
