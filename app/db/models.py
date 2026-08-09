@@ -24,6 +24,9 @@ class Job(Base):
     frames = Column(Integer)
     error = Column(String, nullable=True)
     
+    current_step = Column(Integer, default=0)
+    total_steps = Column(Integer, default=30)
+    
     # Diffusion Forcing / Advanced
     ar_step = Column(Integer, default=0)
     overlap_history = Column(Integer, default=17)

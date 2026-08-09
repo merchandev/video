@@ -1,3 +1,4 @@
-Write-Host "Iniciando LocalWan Studio..."
-docker compose up -d wan-studio
-Write-Host "Listo. Aplicación disponible en http://localhost:7860"
+Write-Host "=== Iniciando Local Video Studio (SkyReels V2) ==="
+docker compose up -d
+Write-Host "Abriendo http://localhost:7860 en tu navegador..."
+Start-Process "http://localhost:7860"

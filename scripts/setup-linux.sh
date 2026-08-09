@@ -1,28 +1,21 @@
 #!/bin/bash
-set -e
-
-echo "=== Instalación de LocalWan Studio ==="
+echo "=== Instalación de Local Video Studio (SkyReels V2) ==="
 
 echo -e "\n1. Comprobando Docker..."
-if ! command -v docker &> /dev/null; then
-    echo "Error: Docker no está instalado."
+if ! command -v docker &> /dev/null
+then
+    echo "Docker no está instalado. Instálalo primero."
     exit 1
 fi
 
-echo -e "\n2. Comprobando acceso a GPU desde Docker..."
-if ! docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi; then
-    echo "Error: No se pudo acceder a la GPU NVIDIA en Docker."
-    exit 1
-fi
+echo -e "\n2. Construyendo imagen V3 (Diffusers Native)..."
+docker compose build
 
-echo -e "\n3. Construyendo imagen..."
-docker compose build wan-studio
-
-echo -e "\n4. Descargando modelo Wan2.2-TI2V-5B..."
+echo -e "\n3. Descargando pesos de SkyReels V2 (I2V y DF)..."
 docker compose --profile tools run --rm model-downloader
 
-echo -e "\n5. Iniciando aplicación..."
-docker compose up -d wan-studio
+echo -e "\n4. Iniciando Local Video Studio..."
+docker compose up -d
 
 echo -e "\n=== Todo listo ==="
-echo "Abre tu navegador en http://localhost:7860"
+echo "Abre http://localhost:7860 en tu navegador."

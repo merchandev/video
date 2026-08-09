@@ -1,21 +1,25 @@
-# LocalWan Studio (V2)
+# Local Video Studio
 
-Generador de video local avanzado basado en **Wan2.2-TI2V-5B** orquestado por **FastAPI** y **ComfyUI**.
+Generador de video local basado enteramente en la integración oficial de **SkyReels-V2** mediante HuggingFace `diffusers`.
 
-## Arquitectura
+- **Imagen → Video** (I2V)
+- **Texto → Video** (Diffusion Forcing)
+- **Primer frame → último frame**
+- **Extensión de Video**
+- Interfaz web local consolidada
+- Offload de CPU Secuencial para compatibilidad con **Low VRAM (ej. RTX 3050 8GB)**
+- 24 fps
+- Cola de generación robusta sobre SQLite (1 trabajo en GPU a la vez)
+- Sin cuentas, créditos ni API de pago
 
-El sistema utiliza contenedores independientes (Docker Compose):
-1. **API (FastAPI)**: Maneja peticiones web, procesa las imágenes y gestiona los trabajos en SQLite. No usa la GPU directamente.
-2. **Motor (ComfyUI)**: Recibe los flujos JSON mediante API y encola los trabajos en la GPU. Soporta *offloading* nativo, permitiendo ejecutar Wan2.2 en tarjetas con menor VRAM (ej. 8 GB).
+## Requisitos recomendados (Windows)
 
-## Requisitos
+- Windows 10/11 actualizado
+- Docker Desktop usando backend WSL2
+- GPU NVIDIA (mínimo 6-8GB VRAM) visible desde Docker
+- Driver NVIDIA actualizado
 
-- Windows 10/11 con WSL2.
-- Driver NVIDIA actualizado.
-- Docker Desktop con integración WSL2 activada.
-- Tarjeta gráfica NVIDIA (Recomendado: 8 GB+ VRAM para Wan2.2 nativo).
-
-## Instalación rápida en Windows
+## Instalación Automática (Windows)
 
 Abre PowerShell en esta carpeta y ejecuta:
 
@@ -24,21 +28,22 @@ Set-ExecutionPolicy -Scope Process Bypass
 .\scripts\setup-windows.ps1
 ```
 
-Este script detecta tu GPU, construye los contenedores, descarga los modelos, e inicia la interfaz en `http://localhost:7860`.
+Este script:
+1. Validará tu GPU y aplicará perfiles.
+2. Construirá la imagen Docker localmente, instalando PyTorch y `diffusers`.
+3. Descargará ambos modelos de Skywork (I2V y DF).
+4. Levantará la API FastAPI en `http://localhost:7860`.
 
-## Uso
+## Iniciar el servidor
 
-1. Entra a `http://localhost:7860`.
-2. Sube una imagen de referencia (I2V) o ingresa un prompt (T2V).
-3. Monitorea el proceso y descarga tu MP4 a la resolución exacta configurada.
+Para arrancar el servidor en usos posteriores, utiliza:
 
-## Ubicación de Datos
+```powershell
+.\scripts\start.ps1
+```
 
-- `models/`: Pesos del modelo y checkpints de ComfyUI.
-- `data/inputs/`: Imágenes de usuario preprocesadas.
-- `data/outputs/`: Videos finales.
-- `data/db/`: Base de datos SQLite (`jobs.db`).
-
-## Licencias
-
-El código de esta aplicación está licenciado bajo MIT. El modelo Wan2.2 está sujeto a su propia licencia oficial de uso (revisar repositorio de Wan-AI). ComfyUI se rige por su propia licencia GPL.
+## Arquitectura V3
+- **FastAPI**: Maneja todo el servidor en un solo proceso `app/main.py`.
+- **Inferencia**: Utiliza los Pipelines nativos `SkyReelsV2ImageToVideoPipeline` y `SkyReelsV2DiffusionForcingPipeline` gestionados en `app/model_manager.py`.
+- **Offloading**: Para GPUs de menos de 16GB, el sistema aplica automáticamente `enable_sequential_cpu_offload()` para garantizar que el modelo entre en la VRAM disponible, reduciendo si es necesario los `base_num_frames` a 77 o 57.
+- **FFmpeg**: Todo resultado RAW se interpola y recorta exactamente al formato deseado (1280x720 o 720x1280) localmente por CPU para no comprometer memoria GPU.
