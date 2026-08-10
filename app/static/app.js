@@ -128,6 +128,10 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="progress-bar-container">
                 <div class="progress-bar" id="progress-${jobId}" style="width: 0%"></div>
             </div>
+            <div class="time-stats" id="time-stats-${jobId}" style="display: none; justify-content: space-between; font-size: 0.8rem; color: #a29bfe; margin-top: 5px;">
+                <span id="elapsed-${jobId}">Transcurrido: 00:00</span>
+                <span id="eta-${jobId}">Restante: Calculando...</span>
+            </div>
             <div class="log-container hidden" id="log-${jobId}"></div>
             <video id="video-${jobId}" class="job-video hidden" controls loop autoplay playsinline></video>
             <div class="job-actions hidden" id="actions-${jobId}">
@@ -176,12 +180,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 statusEl.textContent = 'Procesando...';
                 statusEl.className = 'job-status processing';
                 
+                if (!jobItem.startTime) {
+                    jobItem.startTime = Date.now();
+                    const ts = document.getElementById(`time-stats-${jobId}`);
+                    if (ts) ts.style.display = 'flex';
+                }
+                
+                const elapsedSecs = Math.floor((Date.now() - jobItem.startTime) / 1000);
+                const m = String(Math.floor(elapsedSecs / 60)).padStart(2, '0');
+                const s = String(elapsedSecs % 60).padStart(2, '0');
+                const elapsedEl = document.getElementById(`elapsed-${jobId}`);
+                if (elapsedEl) elapsedEl.textContent = `Transcurrido: ${m}:${s}`;
+                
                 const percent = (data.progress || 0) * 100;
                 progressEl.style.width = `${percent}%`;
+                
+                const etaEl = document.getElementById(`eta-${jobId}`);
+                if (etaEl) {
+                    if (data.progress > 0 && data.progress <= 1) {
+                        const totalEstimated = elapsedSecs / data.progress;
+                        const remainingSecs = Math.max(0, Math.floor(totalEstimated - elapsedSecs));
+                        const rm = String(Math.floor(remainingSecs / 60)).padStart(2, '0');
+                        const rs = String(remainingSecs % 60).padStart(2, '0');
+                        etaEl.textContent = `Restante: ~${rm}:${rs}`;
+                    } else {
+                        etaEl.textContent = 'Restante: Calculando...';
+                    }
+                }
             } else if (data.status === 'finished' || data.status === 'completed') {
                 statusEl.textContent = 'Completado';
                 statusEl.className = 'job-status completed';
                 progressEl.style.width = '100%';
+                
+                const ts = document.getElementById(`time-stats-${jobId}`);
+                if (ts) ts.style.display = 'none';
                 
                 // Mostrar video y ocultar barra
                 progressEl.parentElement.classList.add('hidden');
