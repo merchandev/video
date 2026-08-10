@@ -241,9 +241,18 @@ def run_skyreels_sync(job_id: str):
             
         elif job.mode == "storyboard":
             import json
-            paths = json.loads(job.storyboard_paths) if job.storyboard_paths else []
-            if len(paths) < 2:
-                raise Exception("Not enough images for storyboard")
+            import numpy as np
+            items = json.loads(job.storyboard_paths) if job.storyboard_paths else []
+            if len(items) < 2:
+                raise Exception("Not enough items for storyboard")
+            
+            # Normalize: support both old string format and new {type,path} dict format
+            def normalize_item(x):
+                if isinstance(x, str):
+                    return {"type": "image", "path": x}
+                return x
+
+            items = [normalize_item(x) for x in items]
                 
             vae = AutoencoderKLWan.from_pretrained(
                 DF_MODEL_ID,
@@ -271,43 +280,128 @@ def run_skyreels_sync(job_id: str):
                 
             from PIL import Image, ImageOps
             all_video_frames = []
-            base_size = (job.width, job.height)  # Usar resolución del perfil, no la de la imagen 1
-            
-            total_pairs = len(paths) - 1
-            job.total_steps = 30 * total_pairs
-            db.commit()
-            
-            for i in range(total_pairs):
-                start_img = load_image(paths[i]).convert("RGB")
-                end_img = load_image(paths[i+1]).convert("RGB")
-                
-                if start_img.size != base_size:
-                    start_img = ImageOps.fit(start_img, base_size, method=Image.Resampling.LANCZOS)
-                        
-                if end_img.size != base_size:
-                    end_img = ImageOps.fit(end_img, base_size, method=Image.Resampling.LANCZOS)
-                    
-                kwargs["image"] = start_img
-                kwargs["last_image"] = end_img
-                
-                # Callback wrapper to adjust steps
-                def sb_progress_callback(pipe, step, timestep, callback_kwargs, pair_idx=i):
+            base_size = (job.width, job.height)
+
+            def fit_img(img):
+                """Resize + crop to base_size preserving aspect ratio."""
+                if img.size != base_size:
+                    return ImageOps.fit(img, base_size, method=Image.Resampling.LANCZOS)
+                return img
+
+            def load_as_frames(item):
+                """Return a list of numpy uint8 frames for any item."""
+                if item["type"] == "video":
+                    reader = imageio.get_reader(item["path"])
+                    raw_frames = [frame for frame in reader]
+                    reader.close()
+                    # Resize every frame to base_size
+                    result = []
+                    for f in raw_frames:
+                        pil = Image.fromarray(f).convert("RGB")
+                        pil = fit_img(pil)
+                        result.append(np.array(pil))
+                    return result
+                else:
+                    pil = load_image(item["path"]).convert("RGB")
+                    pil = fit_img(pil)
+                    return [np.array(pil)]  # single frame
+
+            def last_pil(item):
+                """Get last PIL frame of an item (for transition start)."""
+                if item["type"] == "video":
+                    reader = imageio.get_reader(item["path"])
+                    last = None
+                    for frame in reader:
+                        last = frame
+                    reader.close()
+                    if last is None:
+                        raise Exception(f"Video vacío: {item['path']}")
+                    pil = Image.fromarray(last).convert("RGB")
+                    return fit_img(pil)
+                else:
+                    pil = load_image(item["path"]).convert("RGB")
+                    return fit_img(pil)
+
+            def first_pil(item):
+                """Get first PIL frame of an item (for transition end)."""
+                if item["type"] == "video":
+                    reader = imageio.get_reader(item["path"])
+                    first = next(iter(reader))
+                    reader.close()
+                    pil = Image.fromarray(first).convert("RGB")
+                    return fit_img(pil)
+                else:
+                    pil = load_image(item["path"]).convert("RGB")
+                    return fit_img(pil)
+
+            def run_ai_transition(start_pil, end_pil, pair_idx, total_pairs, ai_step_offset, total_ai_steps):
+                """Run AI interpolation between two PIL images."""
+                def sb_progress_callback(pipe, step, timestep, callback_kwargs, _offset=ai_step_offset):
                     db.refresh(job)
                     if job.status == "cancelled":
                         raise Exception("Job cancelled by user")
-                    job.current_step = (pair_idx * 30) + step
+                    job.current_step = _offset + step
                     db.commit()
                     return callback_kwargs
-                    
+
+                kwargs["image"] = start_pil
+                kwargs["last_image"] = end_pil
                 kwargs["callback_on_step_end"] = sb_progress_callback
-                
-                pair_frames = pipe(**kwargs).frames[0]
-                
-                if i > 0:
-                    pair_frames = pair_frames[1:]
-                    
-                all_video_frames.extend(pair_frames)
-                
+                return pipe(**kwargs).frames[0]
+
+            # Count how many AI transitions we'll need
+            ai_transitions = 0
+            for i in range(len(items) - 1):
+                a, b = items[i], items[i+1]
+                # AI is needed between image→image, image→video, video→image, video→video (boundary)
+                # We always generate a transition at every boundary for consistency
+                ai_transitions += 1
+
+            job.total_steps = 30 * ai_transitions
+            db.commit()
+
+            ai_step_offset = 0
+            is_first_segment = True
+
+            for i in range(len(items) - 1):
+                a, b = items[i], items[i+1]
+
+                # 1. Include raw frames of item A (if it's a video and we haven't added it yet)
+                if a["type"] == "video":
+                    a_frames = load_as_frames(a)
+                    if is_first_segment:
+                        all_video_frames.extend(a_frames)
+                    else:
+                        all_video_frames.extend(a_frames[1:])  # skip duplicate frame at join
+                    is_first_segment = False
+                elif is_first_segment and a["type"] == "image":
+                    # For pure image storyboards: the transition starts at this image —
+                    # don't pre-add it; AI will produce the first frame
+                    pass
+
+                # 2. Generate AI transition from last frame of A → first frame of B
+                start_pil = last_pil(a)
+                end_pil = first_pil(b)
+                transition = run_ai_transition(start_pil, end_pil, i, ai_transitions, ai_step_offset, 30 * ai_transitions)
+                ai_step_offset += 30
+
+                # For image→image: transition IS the segment (no pre-added frames)
+                # For video→*: skip frame[0] because it duplicates last raw frame
+                if a["type"] == "video":
+                    all_video_frames.extend(transition[1:])
+                else:
+                    if is_first_segment:
+                        all_video_frames.extend(transition)
+                        is_first_segment = False
+                    else:
+                        all_video_frames.extend(transition[1:])
+
+                # 3. If B is a video and it's the last item, add its raw frames
+                #    (if B is not the last item, it will be handled as A in the next iteration)
+                if b["type"] == "video" and i == len(items) - 2:
+                    b_frames = load_as_frames(b)
+                    all_video_frames.extend(b_frames[1:])
+
             video_frames = all_video_frames
         
         del pipe

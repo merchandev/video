@@ -228,7 +228,7 @@ async def generate_video(
         raise HTTPException(status_code=400, detail="Se requiere un 'video' para el modo extend.")
         
     if mode == "storyboard" and (not storyboard_images or not (2 <= len(storyboard_images) <= 20)):
-        raise HTTPException(status_code=400, detail="Storyboard requiere entre 2 y 20 imágenes.")
+        raise HTTPException(status_code=400, detail="Storyboard requiere entre 2 y 20 archivos (imágenes o videos).")
     
     if mode == "storyboard" and storyboard_images:
         total_pairs = max(1, len(storyboard_images) - 1)
@@ -260,9 +260,22 @@ async def generate_video(
             shutil.copyfileobj(video.file, f)
             
     if mode == "storyboard" and storyboard_images:
-        for idx, s_img in enumerate(storyboard_images):
-            s_path = await process_image(s_img, f"{job_id}_sb_{idx}")
-            storyboard_paths_list.append(s_path)
+        import shutil
+        for idx, s_file in enumerate(storyboard_images):
+            ct = s_file.content_type or ""
+            fname = (s_file.filename or "").lower()
+            is_video = ct.startswith("video/") or fname.endswith(".mp4") or fname.endswith(".mov")
+            
+            if is_video:
+                if s_file.size and s_file.size > 50 * 1024 * 1024:
+                    raise HTTPException(status_code=400, detail=f"El video #{idx+1} excede el límite de 50MB.")
+                vpath = str(INPUTS_DIR / f"{job_id}_sb_{idx}.mp4")
+                with open(vpath, "wb") as fout:
+                    shutil.copyfileobj(s_file.file, fout)
+                storyboard_paths_list.append({"type": "video", "path": vpath})
+            else:
+                ipath = await process_image(s_file, f"{job_id}_sb_{idx}")
+                storyboard_paths_list.append({"type": "image", "path": ipath})
             
     # Base frames según perfil (reducción para VRAM)
     if profile == "extreme":
