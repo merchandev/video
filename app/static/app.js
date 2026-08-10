@@ -175,8 +175,10 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (data.status === 'processing') {
                 statusEl.textContent = 'Procesando...';
                 statusEl.className = 'job-status processing';
-                progressEl.style.width = `${Math.max(5, data.progress * 100)}%`;
-            } else if (data.status === 'completed') {
+                
+                const percent = (data.progress || 0) * 100;
+                progressEl.style.width = `${percent}%`;
+            } else if (data.status === 'finished' || data.status === 'completed') {
                 statusEl.textContent = 'Completado';
                 statusEl.className = 'job-status completed';
                 progressEl.style.width = '100%';
