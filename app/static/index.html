@@ -27,7 +27,7 @@
                             <option value="t2v">Texto → Video</option>
                             <option value="first_last">Primer frame → último frame</option>
                             <option value="extend">Extender video</option>
-                            <option value="storyboard">Storyboard (Múltiples Imágenes)</option>
+                            <option value="storyboard">Secuencia (Múltiples Imágenes/Videos)</option>
                         </select>
                     </div>
 
@@ -37,6 +37,7 @@
                             <span class="file-msg" id="msg-image">Arrastra 1 imagen o haz clic aquí</span>
                             <input class="file-input" type="file" id="image" name="image" accept="image/*">
                         </div>
+                        <div class="file-preview-container" id="preview-image"></div>
                     </div>
 
                     <div class="form-group hidden" id="group-end-image">
@@ -45,6 +46,7 @@
                             <span class="file-msg" id="msg-end-image">Sube la imagen de destino...</span>
                             <input class="file-input" type="file" id="end_image" name="end_image" accept="image/*">
                         </div>
+                        <div class="file-preview-container" id="preview-end-image"></div>
                     </div>
 
                     <div class="form-group hidden" id="group-video">
@@ -56,11 +58,12 @@
                     </div>
 
                     <div class="form-group hidden" id="group-storyboard">
-                        <label for="storyboard_images">Referencias del Storyboard (imágenes y/o videos, en orden)</label>
+                        <label for="storyboard_images">Secuencia (2 a 20 imágenes o videos, en orden)</label>
                         <div class="file-drop-area">
                             <span class="file-msg" id="msg-storyboard-images">Arrastra imágenes (.jpg/.png) y videos (.mp4) mezclados...</span>
                             <input class="file-input" type="file" id="storyboard_images" name="storyboard_images" accept="image/*,video/mp4" multiple>
                         </div>
+                        <div class="file-preview-container" id="preview-storyboard-images"></div>
                     </div>
 
                     <div class="form-group">

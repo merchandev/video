@@ -17,11 +17,47 @@ document.addEventListener('DOMContentLoaded', () => {
         if(input && msg) {
             input.addEventListener('change', (e) => {
                 const count = e.target.files.length;
+                const containerId = id === 'storyboard_images' ? 'preview-storyboard-images' : `preview-${id.replace('_', '-')}`;
+                const previewContainer = document.getElementById(containerId);
+                
+                if (previewContainer) {
+                    previewContainer.innerHTML = ''; // clear old previews
+                }
+                
                 if (count > 0) {
                     msg.textContent = count === 1 ? e.target.files[0].name : `${count} archivos seleccionados`;
                     msg.style.color = '#a29bfe';
                     if (count > 20) {
                         alert(`Has seleccionado ${count} archivos. Solo se procesarán los primeros 20 para evitar sobrecarga.`);
+                    }
+                    
+                    // Render previews
+                    if (previewContainer) {
+                        const maxPreviews = Math.min(count, 20);
+                        for (let i = 0; i < maxPreviews; i++) {
+                            const file = e.target.files[i];
+                            const item = document.createElement('div');
+                            item.className = 'preview-item';
+                            
+                            const idxBadge = document.createElement('div');
+                            idxBadge.className = 'preview-idx';
+                            idxBadge.textContent = i + 1;
+                            item.appendChild(idxBadge);
+                            
+                            if (file.type.startsWith('video/')) {
+                                const vid = document.createElement('video');
+                                vid.src = URL.createObjectURL(file);
+                                vid.muted = true;
+                                vid.currentTime = 1; // get a frame instead of black screen
+                                item.appendChild(vid);
+                            } else {
+                                const img = document.createElement('img');
+                                img.src = URL.createObjectURL(file);
+                                item.appendChild(img);
+                            }
+                            
+                            previewContainer.appendChild(item);
+                        }
                     }
                 } else {
                     msg.textContent = 'Seleccionar archivo...';

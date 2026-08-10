@@ -87,7 +87,7 @@ def run_skyreels_sync(job_id: str):
                 vae = AutoencoderKLWan.from_pretrained(
                     DF_MODEL_ID,
                     subfolder="vae",
-                    torch_dtype=torch.float32,
+                    torch_dtype=torch.bfloat16,
                     local_files_only=True,
                     use_safetensors=True,
                 )
@@ -106,7 +106,7 @@ def run_skyreels_sync(job_id: str):
                 vae = AutoencoderKLWan.from_pretrained(
                     I2V_MODEL_ID,
                     subfolder="vae",
-                    torch_dtype=torch.float32,
+                    torch_dtype=torch.bfloat16,
                     local_files_only=True,
                     use_safetensors=True,
                 )
@@ -145,7 +145,7 @@ def run_skyreels_sync(job_id: str):
             vae = AutoencoderKLWan.from_pretrained(
                 DF_MODEL_ID,
                 subfolder="vae",
-                torch_dtype=torch.float32,
+                torch_dtype=torch.bfloat16,
                 local_files_only=True,
                 use_safetensors=True,
             )
@@ -173,7 +173,7 @@ def run_skyreels_sync(job_id: str):
             vae = AutoencoderKLWan.from_pretrained(
                 DF_MODEL_ID,
                 subfolder="vae",
-                torch_dtype=torch.float32,
+                torch_dtype=torch.bfloat16,
                 local_files_only=True,
                 use_safetensors=True,
             )
@@ -212,7 +212,7 @@ def run_skyreels_sync(job_id: str):
             vae = AutoencoderKLWan.from_pretrained(
                 DF_MODEL_ID,
                 subfolder="vae",
-                torch_dtype=torch.float32,
+                torch_dtype=torch.bfloat16,
                 local_files_only=True,
                 use_safetensors=True,
             )
@@ -257,7 +257,7 @@ def run_skyreels_sync(job_id: str):
             vae = AutoencoderKLWan.from_pretrained(
                 DF_MODEL_ID,
                 subfolder="vae",
-                torch_dtype=torch.float32,
+                torch_dtype=torch.bfloat16,
                 local_files_only=True,
                 use_safetensors=True,
             )
