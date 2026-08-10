@@ -167,7 +167,7 @@ def readiness_check():
 async def generate_video(
     background_tasks: BackgroundTasks,
     mode: str = Form("i2v"),
-    prompt: str = Form(...),
+    prompt: str = Form(""),
     negative_prompt: str = Form(""),
     image: Optional[UploadFile] = File(None),
     end_image: Optional[UploadFile] = File(None),
