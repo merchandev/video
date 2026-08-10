@@ -51,7 +51,10 @@ def startup_event():
 
 async def process_image(file_obj: UploadFile, prefix: str) -> str:
     try:
-        img = Image.open(file_obj.file)
+        import io
+        # Read all bytes first — PIL cannot reliably open a SpooledTemporaryFile directly
+        content = await file_obj.read()
+        img = Image.open(io.BytesIO(content))
         
         # Corrección de orientación EXIF
         try:
@@ -72,6 +75,8 @@ async def process_image(file_obj: UploadFile, prefix: str) -> str:
         path = str(INPUTS_DIR / f"{prefix}.png")
         img.save(path, format="PNG")
         return path
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Imagen inválida: {str(e)}")
 

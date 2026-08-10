@@ -217,96 +217,86 @@ document.addEventListener('DOMContentLoaded', () => {
 
         submitBtn.textContent = "ENVIANDO LOTE...";
         
-        let fileList = [];
-        
+        // Cada modo produce SIEMPRE 1 solo job.
+        // I2V / first_last / extend / t2v / storyboard → 1 video.
+        let jobFiles = null; // datos de archivos para el único job
+
         if (mode === 'i2v') {
             const input = document.getElementById('image');
-            if (input.files.length > 0) fileList = Array.from(input.files).slice(0, 20);
+            if (input.files.length > 0) jobFiles = { image: input.files[0] };
         } else if (mode === 'extend') {
             const input = document.getElementById('video');
-            if (input.files.length > 0) fileList = Array.from(input.files).slice(0, 20);
+            if (input.files.length > 0) jobFiles = { video: input.files[0] };
         } else if (mode === 'first_last') {
             const imgInput = document.getElementById('image');
             const endImgInput = document.getElementById('end_image');
-            // Emparejar imagenes 1 a 1
-            const count = Math.min(imgInput.files.length, endImgInput.files.length, 20);
-            for(let i=0; i<count; i++) {
-                fileList.push({ start: imgInput.files[i], end: endImgInput.files[i] });
+            if (imgInput.files.length > 0 && endImgInput.files.length > 0) {
+                jobFiles = { start: imgInput.files[0], end: endImgInput.files[0] };
             }
         } else if (mode === 'storyboard') {
             const input = document.getElementById('storyboard_images');
             if (input.files.length >= 2) {
-                fileList.push({ images: Array.from(input.files).slice(0, 20) });
+                jobFiles = { storyboard: Array.from(input.files).slice(0, 20) };
             } else {
-                alert("Debes subir al menos 2 imágenes para el storyboard.");
+                alert("Storyboard requiere al menos 2 archivos (imágenes o videos).");
                 submitBtn.disabled = false;
-                submitBtn.innerHTML = 'GENERAR VIDEOS <span class="btn-glow"></span>';
+                submitBtn.innerHTML = 'GENERAR VIDEO <span class="btn-glow"></span>';
                 return;
             }
         }
         
-        // Si no hay múltiples o es t2v, es 1 solo job
-        const jobCount = Math.max(1, fileList.length);
-        
-        for (let i = 0; i < jobCount; i++) {
-            const jobFormData = new FormData();
-            
-            // Copiar los datos base (prompt, perfil, etc) — excluir TODOS los campos de archivo
-            const fileKeys = ['image', 'end_image', 'video', 'storyboard_images'];
-            for (const [key, value] of baseFormData.entries()) {
-                if (!fileKeys.includes(key)) {
-                    jobFormData.append(key, value);
-                }
+        // 1 solo job siempre
+        const jobFormData = new FormData();
+        const fileKeys = ['image', 'end_image', 'video', 'storyboard_images'];
+        for (const [key, value] of baseFormData.entries()) {
+            if (!fileKeys.includes(key)) {
+                jobFormData.append(key, value);
             }
-            
-            // Adjuntar los archivos específicos de esta iteración
-            if (fileList.length > 0) {
-                if (mode === 'i2v') {
-                    jobFormData.append('image', fileList[i]);
-                } else if (mode === 'extend') {
-                    jobFormData.append('video', fileList[i]);
-                } else if (mode === 'first_last') {
-                    jobFormData.append('image', fileList[i].start);
-                    jobFormData.append('end_image', fileList[i].end);
-                } else if (mode === 'storyboard') {
-                    for (let img of fileList[i].images) {
-                        jobFormData.append('storyboard_images', img);
-                    }
-                }
+        }
+
+        if (mode === 'i2v' && jobFiles?.image) {
+            jobFormData.append('image', jobFiles.image);
+        } else if (mode === 'extend' && jobFiles?.video) {
+            jobFormData.append('video', jobFiles.video);
+        } else if (mode === 'first_last' && jobFiles?.start) {
+            jobFormData.append('image', jobFiles.start);
+            jobFormData.append('end_image', jobFiles.end);
+        } else if (mode === 'storyboard' && jobFiles?.storyboard) {
+            for (const f of jobFiles.storyboard) {
+                jobFormData.append('storyboard_images', f);
             }
+        }
+        try {
+            const res = await fetch('/api/generate', {
+                method: 'POST',
+                body: jobFormData
+            });
             
-            try {
-                const res = await fetch('/api/generate', {
-                    method: 'POST',
-                    body: jobFormData
-                });
+            if (res.ok) {
+                const data = await res.json();
+                createJobCard(data.job_id, 0);
                 
-                if (res.ok) {
-                    const data = await res.json();
-                    createJobCard(data.job_id, i);
-                    
-                    const interval = setInterval(() => pollJob(data.job_id), 3000);
-                    activeJobs.push({ id: data.job_id, status: 'queued', interval: interval });
-                } else {
-                    const errData = await res.json();
-                    let detailMsg = errData.detail;
-                    if (typeof detailMsg === 'object') {
-                        if (Array.isArray(detailMsg)) {
-                            detailMsg = detailMsg.map(d => `${d.loc ? d.loc.join('->') + ': ' : ''}${d.msg}`).join('\n');
-                        } else {
-                            detailMsg = JSON.stringify(detailMsg);
-                        }
+                const interval = setInterval(() => pollJob(data.job_id), 3000);
+                activeJobs.push({ id: data.job_id, status: 'queued', interval: interval });
+            } else {
+                const errData = await res.json();
+                let detailMsg = errData.detail;
+                if (typeof detailMsg === 'object') {
+                    if (Array.isArray(detailMsg)) {
+                        detailMsg = detailMsg.map(d => `${d.loc ? d.loc.join('->') + ': ' : ''}${d.msg}`).join('\n');
+                    } else {
+                        detailMsg = JSON.stringify(detailMsg);
                     }
-                    alert(`Error en el video #${i+1}:\n${detailMsg || 'Petición rechazada'}`);
                 }
-            } catch (err) {
-                console.error("Error submitting job", i, err);
-                alert(`Error de red al enviar el video #${i+1}`);
+                alert(`Error al enviar:\n${detailMsg || 'Petición rechazada'}`);
             }
+        } catch (err) {
+            console.error("Error submitting job", err);
+            alert(`Error de red al enviar el video`);
         }
         
         submitBtn.disabled = false;
-        submitBtn.innerHTML = 'GENERAR VIDEOS <span class="btn-glow"></span>';
+        submitBtn.innerHTML = 'GENERAR VIDEO <span class="btn-glow"></span>';
         
         // Limpiar el form para permitir otro lote nuevo
         form.reset();
