@@ -348,6 +348,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const interval = setInterval(() => pollJob(data.job_id), 3000);
                 activeJobs.push({ id: data.job_id, status: 'queued', interval: interval });
+                
+                setTimeout(() => {
+                    document.getElementById('jobs-grid').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 100);
             } else {
                 const errData = await res.json();
                 let detailMsg = errData.detail;
