@@ -229,6 +229,15 @@ async def generate_video(
         
     if mode == "storyboard" and (not storyboard_images or not (2 <= len(storyboard_images) <= 20)):
         raise HTTPException(status_code=400, detail="Storyboard requiere entre 2 y 20 imágenes.")
+    
+    if mode == "storyboard" and storyboard_images:
+        total_pairs = max(1, len(storyboard_images) - 1)
+        min_duration = total_pairs * 1  # Al menos 1 segundo por transición
+        if duration_seconds < min_duration:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Para {len(storyboard_images)} imágenes necesitas al menos {min_duration} segundos de duración total."
+            )
 
     job_id = str(uuid.uuid4())
     image_path = None
@@ -268,7 +277,8 @@ async def generate_video(
         total_pairs = max(1, len(storyboard_images) - 1)
         sec_per_pair = duration_seconds / total_pairs
         raw_frames = int(sec_per_pair * 24)
-        num_frames = ((raw_frames - 1) // 4) * 4 + 1
+        # Mínimo 5 frames por transición para que Diffusion Forcing funcione
+        num_frames = max(5, ((raw_frames - 1) // 4) * 4 + 1)
     elif mode == "i2v" and duration_seconds <= 4:
         num_frames = duration_seconds * 24 + 1
     else:

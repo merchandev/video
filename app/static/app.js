@@ -104,7 +104,12 @@ document.addEventListener('DOMContentLoaded', () => {
         
         document.getElementById(`cancel-${jobId}`).addEventListener('click', async () => {
             try {
-                await fetch(`/api/jobs/${jobId}/cancel`, { method: 'POST' });
+                const res = await fetch(`/api/jobs/${jobId}/cancel`, { method: 'POST' });
+                if (!res.ok) {
+                    // 409 = job already finished — refresh its real status
+                    await pollJob(jobId);
+                    return;
+                }
                 document.getElementById(`status-${jobId}`).textContent = 'Cancelado';
                 document.getElementById(`status-${jobId}`).className = 'job-status failed';
             } catch (error) {
@@ -246,9 +251,10 @@ document.addEventListener('DOMContentLoaded', () => {
         for (let i = 0; i < jobCount; i++) {
             const jobFormData = new FormData();
             
-            // Copiar los datos base (prompt, perfil, etc)
+            // Copiar los datos base (prompt, perfil, etc) — excluir TODOS los campos de archivo
+            const fileKeys = ['image', 'end_image', 'video', 'storyboard_images'];
             for (const [key, value] of baseFormData.entries()) {
-                if (key !== 'image' && key !== 'end_image' && key !== 'video') {
+                if (!fileKeys.includes(key)) {
                     jobFormData.append(key, value);
                 }
             }

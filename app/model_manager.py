@@ -194,11 +194,14 @@ def run_skyreels_sync(job_id: str):
             else:
                 pipe.to(device)
                 
-            from PIL import Image
+            from PIL import Image, ImageOps
+            target_size = (job.width, job.height)
             image = load_image(job.image_path).convert("RGB")
             last_image = load_image(job.end_image_path).convert("RGB")
-            if image.size != last_image.size:
-                last_image = last_image.resize(image.size, Image.Resampling.LANCZOS)
+            if image.size != target_size:
+                image = ImageOps.fit(image, target_size, method=Image.Resampling.LANCZOS)
+            if last_image.size != target_size:
+                last_image = ImageOps.fit(last_image, target_size, method=Image.Resampling.LANCZOS)
             kwargs["image"] = image
             kwargs["last_image"] = last_image
             
@@ -268,6 +271,7 @@ def run_skyreels_sync(job_id: str):
                 
             from PIL import Image, ImageOps
             all_video_frames = []
+            base_size = (job.width, job.height)  # Usar resolución del perfil, no la de la imagen 1
             
             total_pairs = len(paths) - 1
             job.total_steps = 30 * total_pairs
@@ -277,11 +281,8 @@ def run_skyreels_sync(job_id: str):
                 start_img = load_image(paths[i]).convert("RGB")
                 end_img = load_image(paths[i+1]).convert("RGB")
                 
-                if i == 0:
-                    base_size = start_img.size
-                else:
-                    if start_img.size != base_size:
-                        start_img = ImageOps.fit(start_img, base_size, method=Image.Resampling.LANCZOS)
+                if start_img.size != base_size:
+                    start_img = ImageOps.fit(start_img, base_size, method=Image.Resampling.LANCZOS)
                         
                 if end_img.size != base_size:
                     end_img = ImageOps.fit(end_img, base_size, method=Image.Resampling.LANCZOS)

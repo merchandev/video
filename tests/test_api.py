@@ -12,12 +12,20 @@ import app.main
 
 original_validate_model_integrity = app.main.validate_model_integrity
 
+# Fixture global: solo mockea validator y queue_job. NO mockea Path.exists
+# para que test_validate_model_integrity pueda usar el filesystem real.
 @pytest.fixture(autouse=True)
 def mock_model_files():
     with patch("app.main.validate_model_integrity", return_value=True), \
-         patch("app.main.queue_job"), \
-         patch("app.main.Path.exists", return_value=True):
+         patch("app.main.queue_job"):
         yield
+
+# Fixture específico para tests /generate que necesitan que el modelo "exista"
+@pytest.fixture
+def mock_model_path_exists():
+    with patch("app.main.Path.exists", return_value=True):
+        yield
+
 
 def test_health_check():
     response = client.get("/api/health")
@@ -32,7 +40,7 @@ def test_readiness_check():
     assert "gpu" in data
     assert "models" in data
 
-def test_generate_t2v():
+def test_generate_t2v(mock_model_path_exists):
     response = client.post(
         "/api/generate",
         data={
@@ -60,7 +68,7 @@ def test_generate_i2v_invalid_image():
             assert response.status_code == 400
     os.remove(f.name)
 
-def test_generate_i2v_valid_image():
+def test_generate_i2v_valid_image(mock_model_path_exists):
     with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
         img = Image.new("RGB", (100, 100), color="red")
         img.save(f, format="PNG")
@@ -97,7 +105,7 @@ def test_generate_invalid_duration():
     assert response.status_code == 400
     assert "duración" in response.json()["detail"].lower()
 
-def test_generate_first_last_without_end_image():
+def test_generate_first_last_without_end_image(mock_model_path_exists):
     with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
         img = Image.new("RGB", (100, 100), color="red")
         img.save(f, format="PNG")
@@ -192,7 +200,7 @@ def test_generate_storyboard_invalid_count():
             
     os.remove(f.name)
 
-def test_generate_storyboard_valid():
+def test_generate_storyboard_valid(mock_model_path_exists):
     with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f1, \
          tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f2:
         
@@ -207,7 +215,7 @@ def test_generate_storyboard_valid():
         with open(f1.name, "rb") as file1, open(f2.name, "rb") as file2:
             response = client.post(
                 "/api/generate",
-                data={"mode": "storyboard", "prompt": "Red to Blue"},
+                data={"mode": "storyboard", "prompt": "Red to Blue", "duration_seconds": 4},
                 files=[
                     ("storyboard_images", ("test1.png", file1, "image/png")),
                     ("storyboard_images", ("test2.png", file2, "image/png"))
@@ -219,3 +227,33 @@ def test_generate_storyboard_valid():
             
     os.remove(f1.name)
     os.remove(f2.name)
+
+def test_generate_storyboard_too_many_images():
+    """21 imágenes deben ser rechazadas por el backend"""
+    files = []
+    tmp_paths = []
+    try:
+        for i in range(21):
+            f = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+            img = Image.new("RGB", (10, 10), color=(i*10 % 255, 0, 0))
+            img.save(f, format="PNG")
+            f.close()
+            tmp_paths.append(f.name)
+
+        handles = [open(p, "rb") for p in tmp_paths]
+        files = [("storyboard_images", (f"img{i}.png", h, "image/png")) for i, h in enumerate(handles)]
+        response = client.post(
+            "/api/generate",
+            data={"mode": "storyboard", "prompt": "Too many"},
+            files=files
+        )
+        for h in handles:
+            h.close()
+        assert response.status_code == 400
+    finally:
+        for p in tmp_paths:
+            try:
+                os.remove(p)
+            except Exception:
+                pass
+
